@@ -520,10 +520,7 @@ function clearMembers(){
 }
 
 function renderAll(){ 
-  renderStats(); 
-  renderBirthday(birthdayMode); 
   renderMembers(); 
-  renderAnalysis(); 
   renderBookings(); 
 }
 function addBooking() {
