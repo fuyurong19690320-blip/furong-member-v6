@@ -309,17 +309,31 @@ function renderBirthday(mode=birthdayMode){
   }).join("");
 }
 
-function renderMembers(){
+async function renderMembers(){
   const box = document.getElementById("memberList");
-  if(!currentUser || currentUser.role === "staff"){ box.innerHTML = `<div class="member">无权限查看</div>`; return; }
-  const data = getMembers();
-  if(data.length === 0){ box.innerHTML = `<div class="member">暂无会员</div>`; return; }
+  if(!currentUser || currentUser.role === "staff"){
+    box.innerHTML = `<div class="member">无权限查看</div>`;
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("*")
+    .order("id", { ascending: false });
+
+  if(error){
+    box.innerHTML = `<div class="member">读取失败：${error.message}</div>`;
+    return;
+  }
+
+  if(!data || data.length === 0){
+    box.innerHTML = `<div class="member">暂无会员</div>`;
+    return;
+  }
+
   box.innerHTML = data.map(m=>{
     const phoneView = currentUser.role === "admin" ? m.phone : maskPhone(m.phone);
-    return `<div class="member"><strong>${m.name}</strong><br>电话：${phoneView}<br>生日：${m.birthday || "未登记"}<br>门店：${m.store}<br>${profileHtml(m)}<br>到店次数：${(m.visits||[]).length}<br>活跃度：${getActiveLabel(m)}<br>注册日期：${m.registerDate || m.createdAt || "未登记"}<br>
-
-<button onclick="editMember('${m.id}')">编辑</button>
-<button onclick="deleteMember('${m.id}')" style="margin-left:8px;background:#f44336;color:white;border:none;padding:4px 10px;border-radius:4px">删除</button></div>`;
+    return `<div class="member"><strong>${m.name}</strong><br>电话：${phoneView}<br>生日：${m.birthday || "未登记"}<br>等级：${m.level || "普通会员"}</div>`;
   }).join("");
 }
 function deleteMember(id){
