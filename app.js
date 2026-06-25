@@ -156,7 +156,7 @@ async function saveMember(){
     return;
   }
 
-  const { error } = await supabase
+ const { error } = await supabaseClient
   .from("members")
   .insert([{
     name: name,
