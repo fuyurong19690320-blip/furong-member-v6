@@ -181,36 +181,51 @@ function profileHtml(m){
   return `客户类型：${label("customerType", m.customerType)}<br>来店场景：${label("visitScene", m.visitScene)}<br>菜品偏好：${label("foodPreference", m.foodPreference)}<br>口味属性：${label("tastePreference", m.tastePreference)}<br>备注：${m.remark || "无"}`;
 }
 
-function searchMember(){
+async function searchMember(){
   const last4 = document.getElementById("searchPhone").value.trim();
-  const data = getMembers();
-  const found = data.filter(m => String(m.phone).replace(/\D/g,"").slice(-4) === last4);
   const box = document.getElementById("searchResult");
-  if(found.length === 0){ box.innerHTML = `<div class="member">未找到会员</div>`; return; }
-  if(found.length > 1){ box.innerHTML = `<div class="member">找到多个会员，请确认姓名或让客人出示LINE会员页面。</div>`; return; }
+
+  if(!last4){
+    box.innerHTML = `<div class="member">请输入电话后4位</div>`;
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("*");
+
+  if(error){
+    box.innerHTML = `<div class="member">查询失败：${error.message}</div>`;
+    return;
+  }
+
+  const found = data.filter(m =>
+    String(m.phone || "").replace(/\D/g,"").slice(-4) === last4
+  );
+
+  if(found.length === 0){
+    box.innerHTML = `<div class="member">未找到会员</div>`;
+    return;
+  }
+
+  if(found.length > 1){
+    box.innerHTML = `<div class="member">找到多个会员，请确认电话号码。</div>`;
+    return;
+  }
+
   const m = found[0];
   const phoneView = currentUser.role === "admin" ? m.phone : maskPhone(m.phone);
-  box.innerHTML = `<div class="member"><strong>${m.name}</strong><br>电话：${phoneView}<br>生日：${m.birthday || "未登记"}<br>常去门店：${m.store}<br>${profileHtml(m)}<br>
-到店次数：${(m.visits||[]).length}<br>
-最近到店： ${(m.visits && m.visits.length ? ((m.visits[m.visits.length-1].date || m.visits[m.visits.length-1]).slice(0,10)) : "暂无")}<br>
-到店历史：<br>${m.visits && m.visits.length ? m.visits.map(v => ((v.date || v).slice(0,10))).join("<br>") : "暂无"}<br>
-累计消费：${m.total_spent || 0}円<br>
-消费明细：<br>${m.consumes && m.consumes.length ? m.consumes.map(c => c.date + "　" + c.amount + "円").join("<br>") : "暂无"}<br>
-会员等级：${getMemberLevel(m)}<br>
-注册日期：${m.registerDate || m.createdAt || "未登记"}<br>
-<span class="badge">LINE已绑定</span><span
-class="badge badge-yellow">${getActiveLabel(m)}</span><br><button class="red" style="margin-top:12px"
-onclick="recordVisit(${m.id})">
-今日到店
-</button>
 
-<button class="red"
-style="margin-top:12px;margin-left:8px;background:#ff9800"
-onclick="recordConsume(${m.id})">
-消费记录
-</button></div>`;
+  box.innerHTML = `
+    <div class="member">
+      <strong>${m.name}</strong><br>
+      电话：${phoneView}<br>
+      生日：${m.birthday || "未登记"}<br>
+      等级：${m.level || "普通会员"}<br>
+      积分：${m.points || 0}
+    </div>
+  `;
 }
-
 function recordVisit(id){
   const data = getMembers();
   const m = data.find(x => String(x.id) === String(id));
