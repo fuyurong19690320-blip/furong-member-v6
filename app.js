@@ -246,11 +246,7 @@ async function recordVisit(id){
   searchMember();
   renderAll();
 }
-function recordConsume(id){
-  const data = getMembers();
-  const m = data.find(x => String(x.id) === String(id));
-  if(!m) return;
-
+async function recordConsume(id){
   const amountText = prompt("请输入本次消费金额（日元）：", "");
   if(amountText === null) return;
 
@@ -261,21 +257,40 @@ function recordConsume(id){
   }
 
   const today = new Date().toISOString().slice(0,10);
-  m.consumes = m.consumes || [];
-  m.consumes.push({
-    date: today,
-    amount: amount
-  });
 
-  m.total_spent = (m.total_spent || 0) + amount;
+  const { data, error: readError } = await supabaseClient
+    .from("members")
+    .select("total_spent, consume_count")
+    .eq("id", id)
+    .single();
 
-  saveMembers(data);
-  alert("消费已记录，累计消费：" + m.total_spent + "円");
+  if(readError){
+    alert("读取会员失败：" + readError.message);
+    return;
+  }
+
+  const newTotal = Number(data.total_spent || 0) + amount;
+  const newCount = Number(data.consume_count || 0) + 1;
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({
+      total_spent: newTotal,
+      consume_count: newCount,
+      last_consume: today
+    })
+    .eq("id", id);
+
+  if(error){
+    alert("消费记录失败：" + error.message);
+    return;
+  }
+
+  alert("消费已记录，累计消费：" + newTotal + "円");
 
   searchMember();
   renderAll();
 }
-
 function daysSince(dateStr){
   if(!dateStr) return 9999;
   const d = new Date(dateStr);
