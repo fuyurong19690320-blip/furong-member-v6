@@ -226,17 +226,21 @@ async function searchMember(){
     </div>
   `;
 }
-function recordVisit(id){
-  const data = getMembers();
-  const m = data.find(x => String(x.id) === String(id));
-  if(!m) return;
+async function recordVisit(id){
   const today = new Date().toISOString().slice(0,10);
-  m.visits = m.visits || [];
- if(!m.visits.some(v => (v.date || v) === today)){
-  m.visits.push({ date: today });
-}
-  saveMembers(data);
+
+  const { error } = await supabaseClient
+    .from("members")
+    .update({ last_visit: today })
+    .eq("id", id);
+
+  if(error){
+    alert("记录失败：" + error.message);
+    return;
+  }
+
   alert("已记录今日到店");
+
   searchMember();
   renderAll();
 }
