@@ -230,12 +230,17 @@ async function searchMember(){
 }
 async function recordVisit(id){
   const today = new Date().toISOString().slice(0,10);
+  const { data } = await supabaseClient
+  .from("members")
+  .select("visit_count")
+  .eq("id", id)
+  .single();
 
   const { error } = await supabaseClient
     .from("members")
   .update({
-  last_visit: today,
-  visit_count: (m.visit_count || 0) + 1
+    last_visit: today,
+    visit_count: (data.visit_count || 0) + 1
 })
     .eq("id", id);
 
