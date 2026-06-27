@@ -182,25 +182,36 @@ function profileHtml(m){
 }
 
 async function searchMember(){
-  const last4 = document.getElementById("searchPhone").value.trim();
+  const last4 = document.getElementById("searchPhone").value.replace(/\D/g,"").slice(-4);
   const box = document.getElementById("searchResult");
- const { data, error } = await supabaseClient
-  .from("members")
-  .select("*");
 
-if(error){
-  box.innerHTML = `<div class="member">查询失败：${error.message}</div>`;
-  return;
-}
-
-const found = data.filter(m =>
-  String(m.phone).replace(/\D/g,"").slice(-4) === last4
-);
   if(!last4){
     box.innerHTML = `<div class="member">请输入电话后4位</div>`;
     return;
   }
 
+  const { data, error } = await supabaseClient
+    .from("members")
+    .select("*");
+
+  if(error){
+    box.innerHTML = `<div class="member">查询失败：${error.message}</div>`;
+    return;
+  }
+
+  const found = data.filter(m =>
+    String(m.phone || "").replace(/\D/g,"").slice(-4) === last4
+  );
+
+  if(found.length === 0){
+    box.innerHTML = `<div class="member">未找到会员</div>`;
+    return;
+  }
+
+  if(found.length > 1){
+    box.innerHTML = `<div class="member">找到多个会员，请确认电话号码。</div>`;
+    return;
+  }
 
   const m = found[0];
   const phoneView = currentUser.role === "admin" ? m.phone : maskPhone(m.phone);
