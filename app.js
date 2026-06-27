@@ -223,8 +223,34 @@ async function searchMember(){
       生日：${m.birthday || "未登记"}<br>
       等级：${m.level || "普通会员"}<br>
     积分：${m.points || 0}<br><br>
-<button class="red" onclick="recordVisit(${m.id})">今日到店</button>
-<button class="red" style="margin-left:8px;background:#ff9800" onclick="recordConsume(${m.id})">消费记录</button>
+<button class="red"
+onclick="recordVisit(${m.id})">
+今日到店
+</button>
+
+<button class="red"
+style="margin-left:8px;background:#ff9800"
+onclick="recordConsume(${m.id})">
+消费记录
+</button>
+
+<button class="red"
+style="margin-left:8px;background:#2196F3"
+onclick="editMember(${m.id})">
+编辑会员
+</button>
+
+<button class="red"
+style="margin-left:8px;background:#f44336"
+onclick="deleteMember(${m.id})">
+删除会员
+</button>
+
+<button class="red"
+style="margin-left:8px;background:#4CAF50"
+onclick="showMemberStats(${m.id})">
+统计分析
+</button>
     </div>
   `;
 }
