@@ -233,7 +233,10 @@ async function recordVisit(id){
 
   const { error } = await supabaseClient
     .from("members")
-    .update({ last_visit: today })
+  .update({
+  last_visit: today,
+  visit_count: (m.visit_count || 0) + 1
+})
     .eq("id", id);
 
   if(error){
