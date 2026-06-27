@@ -222,7 +222,9 @@ async function searchMember(){
       电话：${phoneView}<br>
       生日：${m.birthday || "未登记"}<br>
       等级：${m.level || "普通会员"}<br>
-      积分：${m.points || 0}
+    积分：${m.points || 0}<br><br>
+<button class="red" onclick="recordVisit(${m.id})">今日到店</button>
+<button class="red" style="margin-left:8px;background:#ff9800" onclick="recordConsume(${m.id})">消费记录</button>
     </div>
   `;
 }
