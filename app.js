@@ -453,7 +453,7 @@ if(error){
   const birthday = prompt("生日（例如 1980-05-20）：", m.birthday || "");
  const customerType = prompt(
 "客户类型请输入：japanese / chinese / student / tourist / vip",
-m.customerType || "japanese"
+m.customer_type || "japanese"
 );
   const scene = prompt("来店场景：", m.scene || "");
   const food = prompt("菜品偏好：", m.food || "");
@@ -465,7 +465,7 @@ m.customerType || "japanese"
 .update({
     name: name,
     birthday: birthday,
-    customerType: customerType,
+   customer_type: customerType,
     scene: scene,
     food: food,
     taste: taste,
