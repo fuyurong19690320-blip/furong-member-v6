@@ -183,8 +183,18 @@ function profileHtml(m){
 
 async function searchMember(){
   const last4 = document.getElementById("searchPhone").value.trim();
-  const box = document.getElementById("searchResult");
+ const { data, error } = await supabaseClient
+  .from("members")
+  .select("*");
 
+if(error){
+  box.innerHTML = `<div class="member">查询失败：${error.message}</div>`;
+  return;
+}
+
+const found = data.filter(m =>
+  String(m.phone).replace(/\D/g,"").slice(-4) === last4
+);
   if(!last4){
     box.innerHTML = `<div class="member">请输入电话后4位</div>`;
     return;
