@@ -230,18 +230,26 @@ async function searchMember(){
 }
 async function recordVisit(id){
   const today = new Date().toISOString().slice(0,10);
-  const { data } = await supabaseClient
-  .from("members")
-  .select("visit_count")
-  .eq("id", id)
-  .single();
+
+  const { data, error: readError } = await supabaseClient
+    .from("members")
+    .select("visit_count")
+    .eq("id", id)
+    .single();
+
+  if(readError){
+    alert("读取会员失败：" + readError.message);
+    return;
+  }
+
+  const newVisitCount = Number(data.visit_count || 0) + 1;
 
   const { error } = await supabaseClient
     .from("members")
-  .update({
-    last_visit: today,
-    visit_count: (data.visit_count || 0) + 1
-})
+    .update({
+      last_visit: today,
+      visit_count: newVisitCount
+    })
     .eq("id", id);
 
   if(error){
@@ -249,7 +257,7 @@ async function recordVisit(id){
     return;
   }
 
-  alert("已记录今日到店");
+  alert("已记录今日到店，到店次数：" + newVisitCount);
 
   searchMember();
   renderAll();
