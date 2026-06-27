@@ -407,16 +407,19 @@ function deleteMember(id){
 
     alert("删除成功");
 }
-function editMember(id){
+async function editMember(id){
     
 
-    const data = getMembers();
+  const { data: m, error } = await supabaseClient
+.from("members")
+.select("*")
+.eq("id", id)
+.single();
 
-    
-   
-    const m = data.find(x => String(x.id) === String(id));
-    if(!m) return;
-  
+if(error){
+    alert(error.message);
+    return;
+}
   
   const name = prompt("会员姓名：", m.name || "");
   if(name === null) return;
@@ -431,18 +434,29 @@ m.customerType || "japanese"
   const taste = prompt("口味属性：", m.taste || "");
   const remark = prompt("备注：", m.remark || "");
 
-  m.name = name;
-  m.birthday = birthday;
-  m.customerType = customerType;
-  m.scene = scene;
-  m.food = food;
-  m.taste = taste;
-  m.remark = remark;
+ const { error: updateError } = await supabaseClient
+.from("members")
+.update({
+    name: name,
+    birthday: birthday,
+    customerType: customerType,
+    scene: scene,
+    food: food,
+    taste: taste,
+    remark: remark
+})
+.eq("id", id);
 
-  saveMembers(data);
-  renderAll();
+if(updateError){
+    alert(updateError.message);
+    return;
+}
 
-  alert("会员资料已更新");
+searchMember();
+
+renderAll();
+
+alert("会员资料已更新");
 }
 function changeStatus(s){
   const t = labels[lang];
