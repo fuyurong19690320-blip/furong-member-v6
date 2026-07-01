@@ -345,6 +345,19 @@ async function recordConsume(id){
 
   const newTotal = Number(data.total_spent || 0) + amount;
   const newCount = Number(data.consume_count || 0) + 1;
+  const { error: logError } = await supabaseClient
+    .from("consume_logs")
+    .insert({
+        member_id: id,
+        amount: amount,
+        consume_date: today,
+        memo: ""
+    });
+
+if(logError){
+    alert("消费明细保存失败：" + logError.message);
+    return;
+}
 
   const { error } = await supabaseClient
     .from("members")
