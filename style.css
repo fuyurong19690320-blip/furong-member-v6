@@ -8,7 +8,20 @@ button{cursor:pointer}
 .login-card button,.red{background:#dc2626;color:white;border:0;padding:15px 20px;border-radius:13px;font-weight:900;font-size:17px}
 .login-card button{width:100%;margin-top:8px}
 .hint{font-size:13px;color:#666;background:#f9fafb;padding:12px;border-radius:12px;margin-top:16px;line-height:1.6}
-.topbar{min-height:74px;background:#7b1e22;color:white;display:flex;align-items:center;justify-content:space-between;padding:12px 22px;gap:12px}
+.topbar{
+    min-height:74px;
+    background:
+        radial-gradient(circle at 85% 35%, rgba(218,175,55,.18), transparent 28%),
+        linear-gradient(135deg,#7b1e22,#8b2a2a);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 22px;
+    gap:12px;
+    position:relative;
+    overflow:hidden;
+}
 .logo{font-size:22px;font-weight:900}.role-text{font-size:13px;opacity:.9;margin-top:4px}
 .small-btn{background:white;color:#7b1e22;border:0;border-radius:10px;padding:9px 12px;font-weight:800;margin-left:6px}
 .logout-btn{background:#111827;color:white;border:0;border-radius:10px;padding:9px 12px;font-weight:800;margin-left:6px}
