@@ -414,21 +414,23 @@ async function renderMembers(){
     return `<div class="member"><strong>${m.name}</strong><br>电话：${phoneView}<br>生日：${m.birthday || "未登记"}<br>等级：${m.level || "普通会员"}</div>`;
   }).join("");
 }
-function deleteMember(id){
+async function deleteMember(id){
 
     if(!confirm("确定删除该会员吗？")){
         return;
     }
 
-    let data = getMembers();
+    const { error } = await supabaseClient
+        .from("members")
+        .delete()
+        .eq("id", id);
 
-    data = data.filter(m => String(m.id) !== String(id));
+    if(error){
+        alert(error.message);
+        return;
+    }
 
-    localStorage.setItem(
-        "fuyoen_members_v5",
-        JSON.stringify(data)
-    );
-
+    searchMember();
     renderAll();
 
     alert("删除成功");
