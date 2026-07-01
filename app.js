@@ -359,7 +359,12 @@ async function recordConsume(id){
     return;
   }
 
-  alert("消费已记录，累计消费：" + newTotal + "円");
+  alert(
+  "消费已记录\n\n" +
+  "本次消费：" + amount + "円\n" +
+  "累计消费：" + newTotal + "円\n" +
+  "消费次数：" + newCount + "次"
+);
 
   searchMember();
   renderAll();
