@@ -254,6 +254,32 @@ onclick="showMemberStats(${m.id})">
     </div>
   `;
 }
+async function showMemberStats(id){
+    const { data: m, error } = await supabaseClient
+        .from("members")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+    if(error){
+        alert(error.message);
+        return;
+    }
+
+    const avg = m.consume_count ? Math.round((m.total_spent || 0) / m.consume_count) : 0;
+
+    alert(
+        "【会员统计】\n\n" +
+        "姓名：" + (m.name || "") + "\n" +
+        "电话：" + (m.phone || "") + "\n" +
+        "到店次数：" + (m.visit_count || 0) + "\n" +
+        "最后到店：" + (m.last_visit || "未记录") + "\n" +
+        "消费次数：" + (m.consume_count || 0) + "\n" +
+        "累计消费：" + (m.total_spent || 0) + "日元\n" +
+        "平均消费：" + avg + "日元\n" +
+        "最后消费：" + (m.last_consume || "未记录")
+    );
+}
 async function recordVisit(id){
   const today = new Date().toISOString().slice(0,10);
 
