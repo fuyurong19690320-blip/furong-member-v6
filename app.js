@@ -677,12 +677,22 @@ function addBooking() {
   const room = document.getElementById("bookingRoom").value;
   const note = document.getElementById("bookingNote").value;
 let memberInfo = "未关联会员";
+
 let members = getMembers();
 let member = members.find(m => m.phone === phone);
 
+let visitCount = 0;
+let totalSpent = 0;
+let activity = "普通会员";
+
 if(member){
-  memberInfo = member.name + "｜到店" + (member.visitCount || 0) + "次｜" + (member.activity || "普通会员");
+    visitCount = member.consume_count || 0;
+    totalSpent = member.total_spent || 0;
+    activity = member.activity || "普通会员";
+
+    memberInfo = "⭐ " + member.name + "｜到店：" + visitCount + " 次｜消费：" + totalSpent + " 日元｜" + activity;
 }
+
 
   const bookingList = document.getElementById("bookingList");
 if(!name){
