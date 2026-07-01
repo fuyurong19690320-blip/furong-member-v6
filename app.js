@@ -268,17 +268,22 @@ async function showMemberStats(id){
 
     const avg = m.consume_count ? Math.round((m.total_spent || 0) / m.consume_count) : 0;
 
-    alert(
-        "【会员统计】\n\n" +
-        "姓名：" + (m.name || "") + "\n" +
+    const html =
+        "👤 " + (m.name || "") + "\n\n" +
         "电话：" + (m.phone || "") + "\n" +
-        "到店次数：" + (m.visit_count || 0) + "\n" +
+        "客户类型：" + (m.customer_type || "未登记") + "\n" +
+        "来店场景：" + (m.scene || "未登记") + "\n" +
+        "喜欢菜品：" + (m.food || "未登记") + "\n" +
+        "口味偏好：" + (m.taste || "未登记") + "\n" +
+        "备注：" + (m.remark || "无") + "\n\n" +
+        "到店次数：" + (m.visit_count || 0) + " 次\n" +
         "最后到店：" + (m.last_visit || "未记录") + "\n" +
-        "消费次数：" + (m.consume_count || 0) + "\n" +
-        "累计消费：" + (m.total_spent || 0) + "日元\n" +
-        "平均消费：" + avg + "日元\n" +
-        "最后消费：" + (m.last_consume || "未记录")
-    );
+        "消费次数：" + (m.consume_count || 0) + " 次\n" +
+        "累计消费：" + (m.total_spent || 0) + " 日元\n" +
+        "平均消费：" + avg + " 日元\n" +
+        "最后消费：" + (m.last_consume || "未记录");
+
+    alert(html);
 }
 async function recordVisit(id){
   const today = new Date().toISOString().slice(0,10);
