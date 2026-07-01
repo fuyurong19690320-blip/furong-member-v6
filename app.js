@@ -799,7 +799,7 @@ todayStats.innerHTML = `
       电话：${b.phone}<br>
      桌号：${b.table_no || ""}<br>
       备注：${b.note}<br>
-      会员信息：LINE预约客人<br>
+     会员信息：${b.memberInfo || "未关联会员"}<br>
      状态：
 <select onchange="changeBookingStatus(${index},this.value)">
 <option value="已预约" ${b.status === "已预约" ? "selected" : ""}>已预约</option>
