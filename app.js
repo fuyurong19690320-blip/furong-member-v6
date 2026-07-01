@@ -316,8 +316,9 @@ async function recordVisit(id){
 
   alert("已记录今日到店，到店次数：" + newVisitCount);
 
-  searchMember();
+ await searchMember();
   renderAll();
+  return;
 }
 async function recordConsume(id){
   const amountText = prompt("请输入本次消费金额（日元）：", "");
