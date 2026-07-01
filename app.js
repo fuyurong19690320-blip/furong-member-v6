@@ -321,11 +321,11 @@ async function recordVisit(id){
   return;
 }
 async function recordConsume(id){
-  const amountText = prompt("请输入本次消费金额（日元）：", "");
+ const amountText = prompt("请输入本次消费金额（日元）\n例如：5800", "");
   if(amountText === null) return;
 
   const amount = Number(amountText.replace(/,/g, ""));
-  if(!amount || amount <= 0){
+ if (isNaN(amount) || amount <= 0) {
     alert("请输入正确金额");
     return;
   }
