@@ -62,6 +62,18 @@ async function fetchBookings(){
   cacheBookings=data||[]; return cacheBookings;
 }
 
+async function fetchConsumeLogs(memberId){
+  if(!supabaseClient || !memberId) return [];
+  const {data,error}=await supabaseClient
+    .from('consume_logs')
+    .select('*')
+    .eq('member_id', memberId)
+    .order('consume_date', {ascending:false})
+    .order('created_at', {ascending:false});
+  if(error){ console.error(error); alert('消费明细读取失败：'+error.message); return []; }
+  return data || [];
+}
+
 function login(){
   const u=$('loginUser').value.trim(); const p=$('loginPass').value.trim();
   if(!users[u] || users[u].password!==p){ alert('账号或密码错误'); return; }
@@ -106,18 +118,57 @@ async function searchMember(){
   box.innerHTML=memberCard(found[0],true);
 }
 function memberCard(m,withActions=false){
-  const phoneView=currentUser&&currentUser.role==='admin'?m.phone:maskPhone(m.phone); const total=Number(memberValue(m,'total_spent')||0); const avg=Number(memberValue(m,'consume_count')||0)?Math.round(total/Number(memberValue(m,'consume_count'))):0;
-  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${memberValue(m,'consume_count')||0}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>${profileHtml(m)}${withActions?`<div class="action-row"><button class="green" onclick="recordVisit(${m.id})">今日到店</button><button class="orange" onclick="recordConsume(${m.id})">消费记录</button><button class="blue" onclick="editMember(${m.id})">编辑会员</button><button class="black" onclick="showMemberStats(${m.id})">统计分析</button><button class="red" onclick="deleteMember(${m.id})">删除会员</button></div>`:''}</div>`;
+  const phoneView=currentUser&&currentUser.role==='admin'?m.phone:maskPhone(m.phone);
+  const total=Number(memberValue(m,'total_spent')||0);
+  const count=Number(memberValue(m,'consume_count')||0);
+  const avg=count?Math.round(total/count):0;
+  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row"><button class="green" onclick="recordVisit(${m.id})">今日到店</button><button class="orange" onclick="recordConsume(${m.id})">消费记录</button><button class="blue" onclick="editMember(${m.id})">编辑会员</button><button class="black" onclick="showMemberStats(${m.id})">消费明细</button><button class="red" onclick="deleteMember(${m.id})">删除会员</button></div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
 }
-async function showMemberStats(id){ const m=cacheMembers.find(x=>x.id===id) || (await supabaseClient.from('members').select('*').eq('id',id).single()).data; if(!m) return; alert(`${m.name}\n电话：${m.phone||''}\n到店次数：${m.visit_count||0}\n最后到店：${m.last_visit||'未记录'}\n消费次数：${m.consume_count||0}\n累计消费：${yen(m.total_spent)}\n最后消费：${m.last_consume||'未记录'}\n等级：${getMemberLevel(m)}`); }
+async function showMemberStats(id){
+  const m=cacheMembers.find(x=>x.id===id) || (await supabaseClient.from('members').select('*').eq('id',id).single()).data;
+  if(!m) return;
+  const box=$('consumeHistory_'+id);
+  const logs=await fetchConsumeLogs(id);
+  const total=Number(m.total_spent||0);
+  const count=Number(m.consume_count||0);
+  const avg=count?Math.round(total/count):0;
+  const header=`<div class="consume-summary"><b>消费明细</b><br>累计：${yen(total)}｜次数：${count}次｜平均：${yen(avg)}｜最后消费：${m.last_consume||'未记录'}</div>`;
+  if(!logs.length){
+    if(box) box.innerHTML=header+'<div class="consume-row">暂无消费明细</div>';
+    else alert(`${m.name}\n暂无消费明细`);
+    return;
+  }
+  const rows=logs.map(x=>`<div class="consume-row"><b>${x.consume_date||String(x.created_at||'').slice(0,10)||'未记录日期'}</b><span>${yen(x.amount)}</span><em>${x.memo||''}</em></div>`).join('');
+  if(box){ box.innerHTML=header+rows; box.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  else alert(`${m.name}\n累计消费：${yen(total)}\n消费次数：${count}次`);
+}
 async function recordVisit(id){ const m=cacheMembers.find(x=>x.id===id) || {}; const today=todayStr(); const newCount=Number(m.visit_count||0)+1; const {error}=await supabaseClient.from('members').update({last_visit:today,visit_count:newCount}).eq('id',id); if(error){ alert('记录失败：'+error.message); return; } alert('已记录今日到店，到店次数：'+newCount); await fetchMembers(); await searchMember(); renderAll(); }
-async function recordConsume(id){ const amountText=prompt('请输入本次消费金额（日元）\n例如：5800',''); if(amountText===null) return; const amount=Number(amountText.replace(/,/g,'')); if(isNaN(amount)||amount<=0){ alert('请输入正确金额'); return; } const m=cacheMembers.find(x=>x.id===id) || {}; const today=todayStr(); const newTotal=Number(m.total_spent||0)+amount; const newCount=Number(m.consume_count||0)+1; const log=await supabaseClient.from('consume_logs').insert({member_id:id,amount,consume_date:today,memo:''}); if(log.error){ alert('消费明细保存失败：'+log.error.message); return; } const {error}=await supabaseClient.from('members').update({total_spent:newTotal,consume_count:newCount,last_consume:today,level:getMemberLevel({total_spent:newTotal})}).eq('id',id); if(error){ alert('消费记录失败：'+error.message); return; } alert('消费已记录\n本次消费：'+yen(amount)+'\n累计消费：'+yen(newTotal)); await fetchMembers(); await searchMember(); renderAll(); }
+async function recordConsume(id){
+  const amountText=prompt('请输入本次消费金额（日元）\n例如：5800','');
+  if(amountText===null) return;
+  const amount=Number(amountText.replace(/,/g,''));
+  if(isNaN(amount)||amount<=0){ alert('请输入正确金额'); return; }
+  const memo=prompt('消费备注（可不填）\n例如：生日聚餐、火锅、包间','') || '';
+  const m=cacheMembers.find(x=>x.id===id) || {};
+  const today=todayStr();
+  const newTotal=Number(m.total_spent||0)+amount;
+  const newCount=Number(m.consume_count||0)+1;
+  const log=await supabaseClient.from('consume_logs').insert({member_id:id,amount,consume_date:today,memo});
+  if(log.error){ alert('消费明细保存失败：'+log.error.message); return; }
+  const {error}=await supabaseClient.from('members').update({total_spent:newTotal,consume_count:newCount,last_consume:today,level:getMemberLevel({total_spent:newTotal})}).eq('id',id);
+  if(error){ alert('消费记录失败：'+error.message); return; }
+  alert('消费已记录\n本次消费：'+yen(amount)+'\n累计消费：'+yen(newTotal));
+  await fetchMembers();
+  await searchMember();
+  renderAll();
+  setTimeout(()=>showMemberStats(id),200);
+}
 async function editMember(id){ const m=cacheMembers.find(x=>x.id===id) || {}; const name=prompt('会员姓名：',m.name||''); if(name===null) return; const birthday=prompt('生日（例如 1980-05-20 或 05/20）：',m.birthday||''); const customerType=prompt('客户类型：japanese / chinese / other / student / tourist / vip',memberValue(m,'customer_type')||'japanese'); const scene=prompt('来店场景：family/company/couple/friends/alone/tourist/nearby/regular',memberValue(m,'scene')||'unknown'); const food=prompt('菜品偏好：hotpot/sichuan/xiaolongbao/dimsum/dessert/alcohol/setmeal',memberValue(m,'food')||'unknown'); const taste=prompt('口味属性：spicy_strong/spicy_mild/no_spicy/mala/light/rich',memberValue(m,'taste')||'unknown'); const remark=prompt('备注：',m.remark||''); const {error}=await supabaseClient.from('members').update({name,birthday,customer_type:customerType,scene,food,taste,remark}).eq('id',id); if(error){ alert(error.message); return; } alert('会员资料已更新'); await fetchMembers(); await searchMember(); renderAll(); }
 async function deleteMember(id){ if(!confirm('确定删除该会员吗？')) return; const {error}=await supabaseClient.from('members').delete().eq('id',id); if(error){ alert(error.message); return; } $('searchResult').innerHTML=''; alert('删除成功'); renderAll(); }
 
 async function renderMembers(){ const box=$('memberList'); if(!box) return; if(!currentUser||currentUser.role==='staff'){ box.innerHTML='<div class="member">无权限查看</div>'; return; } const data=await fetchMembers(); box.innerHTML=data.length?data.map(m=>memberCard(m,false)).join(''):'<div class="member">暂无会员</div>'; }
 async function renderBirthday(mode=birthdayMode){ birthdayMode=mode; const now=new Date(); const cm=now.getMonth()+1, cd=now.getDate(); let data=await fetchMembers(); data=data.filter(m=>m.birthday); if(mode==='today') data=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm&&d.day===cd;}); if(mode==='month') data=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm;}); $('birthdayList').innerHTML=data.length?data.map(m=>memberCard(m,false)).join(''):'<div class="member">暂无生日会员</div>'; }
-async function renderStats(){ const data=await fetchMembers(); const bookings=await fetchBookings(); const now=new Date(); const cm=now.getMonth()+1; const today=todayStr(); $('statTotal').innerText=data.length; $('statBirth').innerText=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm;}).length; $('statVisit').innerText=data.filter(m=>(m.last_visit||'')===today).length; if($('statBooking')) $('statBooking').innerText=bookings.filter(b=>b.booking_date===today && b.status!=='已取消').length; if($('statSales')) $('statSales').innerText=yen(data.filter(m=>(m.last_consume||'')===today).reduce((s,m)=>s+Number(m.total_spent||0),0)); updateStatusText(); renderTodayBookings(); }
+async function renderStats(){ const data=await fetchMembers(); const bookings=await fetchBookings(); const now=new Date(); const cm=now.getMonth()+1; const today=todayStr(); $('statTotal').innerText=data.length; $('statBirth').innerText=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm;}).length; $('statVisit').innerText=data.filter(m=>(m.last_visit||'')===today).length; if($('statBooking')) $('statBooking').innerText=bookings.filter(b=>b.booking_date===today && b.status!=='已取消').length; if($('statSales')){ const {data:logs,error}=await supabaseClient.from('consume_logs').select('amount').eq('consume_date',today); $('statSales').innerText=error?'读取失败':yen((logs||[]).reduce((s,x)=>s+Number(x.amount||0),0)); } updateStatusText(); renderTodayBookings(); }
 function updateStatusText(){ const s=getStatus(); const t=labels[lang]; const name=t[s==='open'?'open':s==='busy'?'busy':s==='stop'?'stop':'closed']; const emoji=s==='open'?'🟢':s==='busy'?'🟡':s==='stop'?'🔴':'⚫'; if($('statusResult')) $('statusResult').innerText=emoji+' 当前状态：'+name; if($('statStatus')) $('statStatus').innerText=name; }
 function changeStatus(s){ const t=labels[lang]; const name=t[s==='open'?'open':s==='busy'?'busy':s==='stop'?'stop':'closed']; if(confirm('确认切换为：'+name+'？')){ saveStatus(s); updateStatusText(); renderStats(); } }
 
