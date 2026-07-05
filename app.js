@@ -163,15 +163,21 @@ async function showMemberStats(id){
     <div class="mini-bar"><div class="mini-bar-top"><b>${esc(ym)}</b><span>${yen(val)}</span></div><div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${Math.max(6,Math.round(val/maxMonth*100))}%"></div></div></div>
   `).join(''):'<div class="empty-line">暂无趋势数据</div>';
 
-  const logHtml=logs.length?logs.map(x=>`
+  const logHtml=logs.length?logs.map(x=>{
+    const title=x.memo&&String(x.memo).trim()?x.memo:'普通消费';
+    return `
     <div class="history-card">
       <div class="history-card-main">
-        <b>${esc(x.memo||'消费记录')}</b>
+        <b>${esc(title)}</b>
         <strong>${yen(x.amount)}</strong>
       </div>
       <div class="history-meta">📅 ${esc(compactDate(x.consume_date||x.created_at)||'未记录日期')}　📝 ${esc(x.memo||'无备注')}</div>
-    </div>
-  `).join(''):'<div class="empty-line">暂无消费明细</div>';
+      <div class="mini-actions">
+        <button class="mini-edit" onclick="editConsumeLog(${x.id},${id})">编辑</button>
+        <button class="mini-delete" onclick="deleteConsumeLog(${x.id},${id})">删除</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty-line">暂无消费明细</div>';
 
   const bookingHtml=bookings.length?bookings.slice(0,8).map(b=>`
     <div class="history-card booking-card">
@@ -224,6 +230,52 @@ async function recordConsume(id){
   renderAll();
   setTimeout(()=>showMemberStats(id),200);
 }
+
+async function recalcMemberConsume(memberId){
+  const logs=await fetchConsumeLogs(memberId);
+  const total=logs.reduce((s,x)=>s+Number(x.amount||0),0);
+  const count=logs.length;
+  const last=logs.length?compactDate(logs[0].consume_date||logs[0].created_at):null;
+  const update={total_spent:total,consume_count:count,last_consume:last,level:getMemberLevel({total_spent:total})};
+  const {error}=await supabaseClient.from('members').update(update).eq('id',memberId);
+  if(error){ alert('会员消费统计更新失败：'+error.message); return false; }
+  await fetchMembers();
+  return true;
+}
+
+async function editConsumeLog(logId, memberId){
+  const logs=await fetchConsumeLogs(memberId);
+  const log=logs.find(x=>x.id===logId);
+  if(!log){ alert('找不到这条消费记录'); return; }
+  const amountText=prompt('修改消费金额（日元）', String(log.amount||''));
+  if(amountText===null) return;
+  const amount=Number(String(amountText).replace(/,/g,''));
+  if(isNaN(amount)||amount<=0){ alert('请输入正确金额'); return; }
+  const memo=prompt('修改消费备注', log.memo||'') || '';
+  const date=prompt('修改消费日期（YYYY-MM-DD）', compactDate(log.consume_date||log.created_at)||todayStr());
+  if(date===null) return;
+  const {error}=await supabaseClient.from('consume_logs').update({amount,memo,consume_date:date}).eq('id',logId);
+  if(error){ alert('消费明细修改失败：'+error.message); return; }
+  const ok=await recalcMemberConsume(memberId);
+  if(!ok) return;
+  alert('消费明细已修改');
+  await searchMember();
+  renderAll();
+  setTimeout(()=>showMemberStats(memberId),200);
+}
+
+async function deleteConsumeLog(logId, memberId){
+  if(!confirm('确定删除这条消费记录吗？删除后会重新计算累计消费。')) return;
+  const {error}=await supabaseClient.from('consume_logs').delete().eq('id',logId);
+  if(error){ alert('消费明细删除失败：'+error.message); return; }
+  const ok=await recalcMemberConsume(memberId);
+  if(!ok) return;
+  alert('消费明细已删除');
+  await searchMember();
+  renderAll();
+  setTimeout(()=>showMemberStats(memberId),200);
+}
+
 async function editMember(id){ const m=cacheMembers.find(x=>x.id===id) || {}; const name=prompt('会员姓名：',m.name||''); if(name===null) return; const birthday=prompt('生日（例如 1980-05-20 或 05/20）：',m.birthday||''); const customerType=prompt('客户类型：japanese / chinese / other / student / tourist / vip',memberValue(m,'customer_type')||'japanese'); const scene=prompt('来店场景：family/company/couple/friends/alone/tourist/nearby/regular',memberValue(m,'scene')||'unknown'); const food=prompt('菜品偏好：hotpot/sichuan/xiaolongbao/dimsum/dessert/alcohol/setmeal',memberValue(m,'food')||'unknown'); const taste=prompt('口味属性：spicy_strong/spicy_mild/no_spicy/mala/light/rich',memberValue(m,'taste')||'unknown'); const remark=prompt('备注：',m.remark||''); const {error}=await supabaseClient.from('members').update({name,birthday,customer_type:customerType,scene,food,taste,remark}).eq('id',id); if(error){ alert(error.message); return; } alert('会员资料已更新'); await fetchMembers(); await searchMember(); renderAll(); }
 async function deleteMember(id){ if(!confirm('确定删除该会员吗？')) return; const {error}=await supabaseClient.from('members').delete().eq('id',id); if(error){ alert(error.message); return; } $('searchResult').innerHTML=''; alert('删除成功'); renderAll(); }
 
