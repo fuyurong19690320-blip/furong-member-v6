@@ -39,6 +39,8 @@ const labels = {
 function $(id){ return document.getElementById(id); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function yen(n){ return Number(n || 0).toLocaleString('ja-JP') + '円'; }
+function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function compactDate(v){ return v ? String(v).slice(0,10) : ''; }
 function getStatus(){ return localStorage.getItem('fuyoen_store_status_v6') || 'open'; }
 function saveStatus(s){ localStorage.setItem('fuyoen_store_status_v6', s); }
 function label(group,key){ key = key || 'unknown'; return ((typeLabel[group]||{})[key] || typeLabel[group].unknown)[lang]; }
@@ -122,25 +124,84 @@ function memberCard(m,withActions=false){
   const total=Number(memberValue(m,'total_spent')||0);
   const count=Number(memberValue(m,'consume_count')||0);
   const avg=count?Math.round(total/count):0;
-  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row"><button class="green" onclick="recordVisit(${m.id})">今日到店</button><button class="orange" onclick="recordConsume(${m.id})">消费记录</button><button class="blue" onclick="editMember(${m.id})">编辑会员</button><button class="black" onclick="showMemberStats(${m.id})">消费明细</button><button class="red" onclick="deleteMember(${m.id})">删除会员</button></div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
+  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row"><button class="green" onclick="recordVisit(${m.id})">今日到店</button><button class="orange" onclick="recordConsume(${m.id})">消费记录</button><button class="blue" onclick="editMember(${m.id})">编辑会员</button><button class="black" onclick="showMemberStats(${m.id})">客户档案</button><button class="red" onclick="deleteMember(${m.id})">删除会员</button></div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
 }
 async function showMemberStats(id){
   const m=cacheMembers.find(x=>x.id===id) || (await supabaseClient.from('members').select('*').eq('id',id).single()).data;
   if(!m) return;
   const box=$('consumeHistory_'+id);
+  if(!box) return;
+
   const logs=await fetchConsumeLogs(id);
+  let bookings=[];
+  try{
+    const phone=String(m.phone||'').replace(/\D/g,'');
+    if(cacheBookings.length===0) await fetchBookings();
+    bookings=cacheBookings.filter(b=>String(b.phone||'').replace(/\D/g,'')===phone);
+  }catch(e){ bookings=[]; }
+
   const total=Number(m.total_spent||0);
   const count=Number(m.consume_count||0);
   const avg=count?Math.round(total/count):0;
-  const header=`<div class="consume-summary"><b>消费明细</b><br>累计：${yen(total)}｜次数：${count}次｜平均：${yen(avg)}｜最后消费：${m.last_consume||'未记录'}</div>`;
-  if(!logs.length){
-    if(box) box.innerHTML=header+'<div class="consume-row">暂无消费明细</div>';
-    else alert(`${m.name}\n暂无消费明细`);
-    return;
-  }
-  const rows=logs.map(x=>`<div class="consume-row"><b>${x.consume_date||String(x.created_at||'').slice(0,10)||'未记录日期'}</b><span>${yen(x.amount)}</span><em>${x.memo||''}</em></div>`).join('');
-  if(box){ box.innerHTML=header+rows; box.scrollIntoView({behavior:'smooth',block:'nearest'}); }
-  else alert(`${m.name}\n累计消费：${yen(total)}\n消费次数：${count}次`);
+  const lastVisit=m.last_visit||'未记录';
+  const lastConsume=m.last_consume||'未记录';
+  const visitDays=daysSince(m.last_visit);
+  let risk='低';
+  let riskClass='risk-low';
+  let suggestion='保持正常维护，可在生日或节日前发送优惠。';
+  if(visitDays>90){ risk='高'; riskClass='risk-high'; suggestion='建议发送回访优惠券或人工联系。'; }
+  else if(visitDays>30){ risk='中'; riskClass='risk-mid'; suggestion='建议发送30天未到店提醒或小额优惠。'; }
+
+  const monthMap={};
+  logs.forEach(x=>{
+    const ym=String(x.consume_date||x.created_at||'').slice(0,7)||'未记录';
+    monthMap[ym]=(monthMap[ym]||0)+Number(x.amount||0);
+  });
+  const months=Object.entries(monthMap).slice(0,6);
+  const maxMonth=Math.max(1,...months.map(x=>x[1]));
+  const monthHtml=months.length?months.map(([ym,val])=>`
+    <div class="mini-bar"><div class="mini-bar-top"><b>${esc(ym)}</b><span>${yen(val)}</span></div><div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${Math.max(6,Math.round(val/maxMonth*100))}%"></div></div></div>
+  `).join(''):'<div class="empty-line">暂无趋势数据</div>';
+
+  const logHtml=logs.length?logs.map(x=>`
+    <div class="history-card">
+      <div class="history-card-main">
+        <b>${esc(x.memo||'消费记录')}</b>
+        <strong>${yen(x.amount)}</strong>
+      </div>
+      <div class="history-meta">📅 ${esc(compactDate(x.consume_date||x.created_at)||'未记录日期')}　📝 ${esc(x.memo||'无备注')}</div>
+    </div>
+  `).join(''):'<div class="empty-line">暂无消费明细</div>';
+
+  const bookingHtml=bookings.length?bookings.slice(0,8).map(b=>`
+    <div class="history-card booking-card">
+      <div class="history-card-main"><b>${esc(b.booking_date||'未定日期')} ${esc(b.booking_time||'')}</b><strong>${esc(b.status||'')}</strong></div>
+      <div class="history-meta">👥 ${esc(b.people||'')}位　🏪 ${esc(stores[b.store_code]||b.store_code||'未登记')}　📝 ${esc(b.note||'无备注')}</div>
+    </div>
+  `).join(''):'<div class="empty-line">暂无预约记录</div>';
+
+  box.innerHTML=`
+    <div class="crm-panel">
+      <div class="crm-header">
+        <div><b>${esc(m.name||'未命名会员')}</b><span>${esc(getMemberLevel(m))}</span></div>
+        <div class="${riskClass}">流失风险：${risk}</div>
+      </div>
+      <div class="crm-grid">
+        <div class="crm-stat"><span>累计消费</span><b>${yen(total)}</b></div>
+        <div class="crm-stat"><span>消费次数</span><b>${count}次</b></div>
+        <div class="crm-stat"><span>平均消费</span><b>${yen(avg)}</b></div>
+        <div class="crm-stat"><span>到店次数</span><b>${Number(m.visit_count||0)}次</b></div>
+        <div class="crm-stat"><span>最后到店</span><b>${esc(lastVisit)}</b></div>
+        <div class="crm-stat"><span>最后消费</span><b>${esc(lastConsume)}</b></div>
+      </div>
+      <div class="crm-section"><h3>客户画像</h3><div class="crm-text">${profileHtml(m)}</div></div>
+      <div class="crm-section"><h3>营销建议</h3><div class="crm-text">${esc(suggestion)}</div></div>
+      <div class="crm-section"><h3>近6个月消费趋势</h3>${monthHtml}</div>
+      <div class="crm-section"><h3>消费明细</h3>${logHtml}</div>
+      <div class="crm-section"><h3>预约记录</h3>${bookingHtml}</div>
+    </div>
+  `;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 async function recordVisit(id){ const m=cacheMembers.find(x=>x.id===id) || {}; const today=todayStr(); const newCount=Number(m.visit_count||0)+1; const {error}=await supabaseClient.from('members').update({last_visit:today,visit_count:newCount}).eq('id',id); if(error){ alert('记录失败：'+error.message); return; } alert('已记录今日到店，到店次数：'+newCount); await fetchMembers(); await searchMember(); renderAll(); }
 async function recordConsume(id){
