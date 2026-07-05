@@ -3,42 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>大阪芙蓉苑会员系统 V5</title>
+<title>大阪芙蓉苑会员系统 V6</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 <div id="loginPage" class="login-wrap">
   <div class="login-card">
     <h1>大阪芙蓉苑</h1>
-    <p>会员系统 V5 / 会員システム</p>
-    <label>账号</label>
-    <input id="loginUser" placeholder="admin / manager / staff">
-    <label>密码</label>
-    <input id="loginPass" type="password" placeholder="1234">
+    <p>会员系统 V6 / 会員システム</p>
+    <label>账号</label><input id="loginUser" placeholder="admin / manager / staff">
+    <label>密码</label><input id="loginPass" type="password" placeholder="1234">
     <button onclick="login()">登录</button>
-    <div class="hint">
-      测试账号：<br>
-      管理员：admin / 1234<br>
-      店长：manager / 1234<br>
-      店员：staff / 1234
-    </div>
+    <div class="hint">测试账号：<br>管理员：admin / 1234<br>店长：manager / 1234<br>店员：staff / 1234</div>
   </div>
 </div>
 
 <div id="app" style="display:none;">
   <div class="topbar">
-    <div>
-      <div class="logo">大阪芙蓉苑 会员系统 V5</div>
-      <div id="roleText" class="role-text"></div>
-    </div>
-    <div class="top-actions">
-      <button onclick="setLang('zh')" class="small-btn">中文</button>
-      <button onclick="setLang('ja')" class="small-btn">日本語</button>
-      <button onclick="logout()" class="logout-btn" id="logoutBtn">退出</button>
-    </div>
+    <div><div class="logo">大阪芙蓉苑 会员系统 V6</div><div id="roleText" class="role-text"></div></div>
+    <div class="top-actions"><button onclick="setLang('zh')" class="small-btn">中文</button><button onclick="setLang('ja')" class="small-btn">日本語</button><button onclick="logout()" class="logout-btn" id="logoutBtn">退出</button></div>
   </div>
-
   <div class="layout">
     <div class="sidebar">
       <button onclick="showPage('dashboard')" id="navDashboard">首页</button>
@@ -47,343 +31,43 @@
       <button onclick="showPage('birthday')" id="navBirthday">生日会员</button>
       <button onclick="showPage('status')" id="navStatus">营业状态</button>
       <button onclick="showPage('members')" id="navMembers">会员列表</button>
-
-     <button onclick="showPage('booking')" id="navBooking">预约管理
-     </button>
-     <button onclick="showPage('lineBooking')"
-      id="navLineBooking">LINE预约入口</button>
+      <button onclick="showPage('booking')" id="navBooking">预约管理</button>
+      <button onclick="showPage('lineBooking')" id="navLineBooking">LINE预约入口</button>
       <button onclick="showPage('analysis')" id="navAnalysis">客户分析</button>
       <button onclick="showPage('push')" id="navPush">LINE推送</button>
       <button onclick="showPage('settings')" id="navSettings">系统设置</button>
     </div>
-
     <div class="content">
       <div id="dashboard" class="page active">
         <div class="stat-grid">
           <div class="stat-card"><div id="statTotalLabel">会员总数</div><b id="statTotal">0</b></div>
           <div class="stat-card"><div id="statBirthLabel">本月生日</div><b id="statBirth">0</b></div>
           <div class="stat-card"><div id="statVisitLabel">本月到店</div><b id="statVisit">0</b></div>
+          <div class="stat-card"><div>今日预约</div><b id="statBooking">0</b></div>
+          <div class="stat-card"><div>今日消费</div><b id="statSales">0</b></div>
           <div class="stat-card"><div id="statStatusLabel">当前状态</div><b id="statStatus">营业中</b></div>
         </div>
-        <div class="card">
-          <h2 id="dashboardTitle">今日操作</h2>
-          <div class="quick-grid">
-            <button onclick="showPage('search')" class="quick" id="quickSearch">会员查询</button>
-            <button onclick="showPage('register')" class="quick" id="quickRegister">新增会员</button>
-            <button onclick="showPage('birthday')" class="quick" id="quickBirthday">生日会员</button>
-            <button onclick="showPage('analysis')" class="quick manager-only" id="quickAnalysis">客户分析</button>
-          </div>
-        </div>
+        <div class="card"><h2 id="dashboardTitle">今日操作</h2><div class="quick-grid"><button onclick="showPage('search')" class="quick" id="quickSearch">会员查询</button><button onclick="showPage('register')" class="quick" id="quickRegister">新增会员</button><button onclick="showPage('booking')" class="quick">预约管理</button><button onclick="showPage('analysis')" class="quick manager-only" id="quickAnalysis">客户分析</button></div></div>
+        <div class="card"><h2>今日预约</h2><div id="todayBookingList">读取中...</div></div>
       </div>
 
-      <div id="search" class="page">
-        <div class="card staff-main">
-          <h2 id="titleSearch">会员查询</h2>
-          <p class="sub" id="searchSub">输入电话后4位，店员端只显示隐藏后的电话。</p>
-          <input id="searchPhone" placeholder="输入电话后4位" inputmode="numeric" maxlength="4">
-          <button onclick="searchMember()" class="red wide" id="searchBtn">查询</button>
-          <div id="searchResult"></div>
-        </div>
-      </div>
+      <div id="search" class="page"><div class="card staff-main"><h2 id="titleSearch">会员查询</h2><p class="sub" id="searchSub">输入电话后4位，店员端只显示隐藏后的电话。</p><input id="searchPhone" placeholder="输入电话后4位" inputmode="numeric" maxlength="4"><button onclick="searchMember()" class="red wide" id="searchBtn">查询</button><div id="searchResult"></div></div></div>
 
-      <div id="register" class="page">
-        <div class="card">
-          <h2 id="titleRegister">新增会员</h2>
-          <label id="labelName">姓名</label>
-          <input id="name">
-          <label id="labelPhone">电话号码</label>
-          <input id="phone" inputmode="tel">
-          <label id="labelBirthday">生日（月日）</label>
-          <input id="birthdayInput" placeholder="03/20">
-          <label id="labelStore">常去门店</label>
-          <select id="store">
-            <option>長堀橋店 1階｜四川料理</option>
-            <option>長堀橋店 2階｜火鍋・四川料理</option>
-            <option>京都店｜火鍋・四川料理</option>
-            <option>PARCO店｜小籠包・四川料理</option>
-          </select>
+      <div id="register" class="page"><div class="card"><h2 id="titleRegister">新增会员</h2>
+        <label id="labelName">姓名</label><input id="name"><label id="labelPhone">电话号码</label><input id="phone" inputmode="tel"><label id="labelBirthday">生日（月日）</label><input id="birthdayInput" placeholder="03/20 或 1980-03-20"><label id="labelStore">常去门店</label><select id="store"><option>長堀橋店 1階｜四川料理</option><option>長堀橋店 2階｜火鍋・四川料理</option><option>京都店｜火鍋・四川料理</option><option>PARCO店｜小籠包・四川料理</option></select>
+        <div class="section-title" id="sectionProfile">客户画像</div><label id="labelCustomerType">客户类型</label><select id="customerType"><option value="japanese">日本客人</option><option value="chinese">中国客人</option><option value="other">其他外国客人</option><option value="unknown">不确定</option></select><label id="labelVisitScene">来店场景</label><select id="visitScene"><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="couple">情侣</option><option value="friends">朋友聚会</option><option value="alone">一个人</option><option value="tourist">游客</option><option value="nearby">附近居民</option><option value="regular">熟客</option><option value="unknown">不确定</option></select><label id="labelFoodPreference">菜品偏好</label><select id="foodPreference"><option value="hotpot">火锅</option><option value="sichuan">川菜</option><option value="xiaolongbao">小笼包</option><option value="dimsum">点心</option><option value="dessert">甜品</option><option value="alcohol">酒类</option><option value="setmeal">套餐</option><option value="unknown">不确定</option></select><label id="labelTastePreference">口味属性</label><select id="tastePreference"><option value="spicy_strong">重辣</option><option value="spicy_mild">微辣</option><option value="no_spicy">不吃辣</option><option value="mala">喜欢麻味</option><option value="light">清淡</option><option value="rich">重口味</option><option value="unknown">不确定</option></select><label>备注</label><textarea id="remark" rows="3" placeholder="会员备注，例如：喜欢靠窗、不吃香菜"></textarea><button onclick="saveMember()" class="red wide" id="saveBtn">保存会员</button></div></div>
 
-          <div class="section-title" id="sectionProfile">客户画像</div>
+      <div id="birthday" class="page"><div class="card"><h2 id="titleBirthday">生日会员</h2><div class="filter-row"><button onclick="renderBirthday('today')" id="birthToday">今日生日</button><button onclick="renderBirthday('month')" id="birthMonth">本月生日</button><button onclick="renderBirthday('all')" id="birthAll">全部生日</button></div><div id="birthdayList"></div></div></div>
+      <div id="status" class="page"><div class="card"><h2 id="titleStatus">营业状态</h2><p class="sub" id="statusSub">店员可切换现场营业状态，防止误操作会二次确认。</p><div class="status-grid"><button onclick="changeStatus('open')" class="status-btn open">🟢 <span id="stOpen">营业中</span></button><button onclick="changeStatus('busy')" class="status-btn busy">🟡 <span id="stBusy">忙碌中</span></button><button onclick="changeStatus('stop')" class="status-btn stop">🔴 <span id="stStop">停止接待</span></button><button onclick="changeStatus('closed')" class="status-btn closed">⚫ <span id="stClosed">已打烊</span></button></div><div id="statusResult" class="status-now"></div></div></div>
+      <div id="members" class="page"><div class="card"><h2 id="titleMembers">会员列表</h2><div id="memberList"></div></div></div>
 
-          <label id="labelCustomerType">客户类型</label>
-          <select id="customerType">
-            <option value="japanese">日本客人</option>
-            <option value="chinese">中国客人</option>
-            <option value="other">其他外国客人</option>
-            <option value="unknown">不确定</option>
-          </select>
+      <div id="booking" class="page"><div class="card"><h2>预约管理</h2><div id="bookingTodayStats"></div><div class="form-grid"><input id="bookingName" placeholder="客户姓名"><input id="bookingPhone" placeholder="联系电话"><input id="bookingDate" type="date"><input id="bookingTime" type="time"><input id="bookingPeople" type="number" placeholder="人数"><input id="bookingRoom" placeholder="桌号 / 包间"><input id="bookingNote" placeholder="备注：生日、忌口、儿童椅等"></div><button onclick="addBooking()" class="red">保存预约</button><h3>预约列表</h3><div id="bookingList">暂无预约记录</div></div></div>
 
-          <label id="labelVisitScene">来店场景</label>
-          <select id="visitScene">
-            <option value="family">家庭聚餐</option>
-            <option value="company">公司聚餐</option>
-            <option value="couple">情侣</option>
-            <option value="friends">朋友聚会</option>
-            <option value="alone">一个人</option>
-            <option value="tourist">游客</option>
-            <option value="nearby">附近居民</option>
-            <option value="regular">熟客</option>
-            <option value="unknown">不确定</option>
-          </select>
+      <div id="lineBooking" class="page"><div class="card"><h2>LINE预约入口</h2><p class="sub">客人扫码后进入对应门店预约页面。二维码图片目前是本地预览，刷新后会消失；正式版可再接 Supabase Storage。</p><div id="lineLinks"></div><button onclick="saveBookingLinks()" class="red">保存预约链接</button></div></div>
 
-          <label id="labelFoodPreference">菜品偏好</label>
-          <select id="foodPreference">
-            <option value="hotpot">火锅</option>
-            <option value="sichuan">川菜</option>
-            <option value="xiaolongbao">小笼包</option>
-            <option value="dimsum">点心</option>
-            <option value="dessert">甜品</option>
-            <option value="alcohol">酒类</option>
-            <option value="setmeal">套餐</option>
-            <option value="unknown">不确定</option>
-          </select>
-
-          <label id="labelTastePreference">口味属性</label>
-          <select id="tastePreference">
-            <option value="spicy_strong">重辣</option>
-            <option value="spicy_mild">微辣</option>
-            <option value="no_spicy">不吃辣</option>
-            <option value="mala">喜欢麻味</option>
-            <option value="light">清淡</option>
-            <option value="rich">重口味</option>
-            <option value="unknown">不确定</option>
-          </select>
-          <label>备注</label>
-          <textarea id="remark" rows="3" placeholder="会员备注，例如：喜欢靠窗、不          吃香菜"></textarea>
-          <button onclick="saveMember()" class="red wide" id="saveBtn">保存会员          </button>
-        </div>
-      </div>
-
-      <div id="birthday" class="page">
-        <div class="card">
-          <h2 id="titleBirthday">生日会员</h2>
-          <div class="filter-row">
-            <button onclick="renderBirthday('today')" id="birthToday">今日生日</button>
-            <button onclick="renderBirthday('month')" id="birthMonth">本月生日</button>
-            <button onclick="renderBirthday('all')" id="birthAll">全部生日</button>
-          </div>
-          <div id="birthdayList"></div>
-        </div>
-      </div>
-
-      <div id="status" class="page">
-        <div class="card">
-          <h2 id="titleStatus">营业状态</h2>
-          <p class="sub" id="statusSub">店员可切换现场营业状态，防止误操作会二次确认。</p>
-          <div class="status-grid">
-            <button onclick="changeStatus('open')" class="status-btn open">🟢 <span id="stOpen">营业中</span></button>
-            <button onclick="changeStatus('busy')" class="status-btn busy">🟡 <span id="stBusy">忙碌中</span></button>
-            <button onclick="changeStatus('stop')" class="status-btn stop">🔴 <span id="stStop">停止接待</span></button>
-            <button onclick="changeStatus('closed')" class="status-btn closed">⚫ <span id="stClosed">已打烊</span></button>
-          </div>
-          <div id="statusResult" class="status-now"></div>
-        </div>
-      </div>
-
-      <div id="members" class="page">
-        <div class="card">
-          <h2 id="titleMembers">会员列表</h2>
-          <div id="memberList"></div>
-        </div>
-      </div>
-    <div id="booking" class="page">
-  <div class="card">
-    <h2>预约管理</h2>
-    <div id="bookingTodayStats"></div>
-
-    <div class="form-grid">
-      <input id="bookingName" placeholder="客户姓名">
-      <input id="bookingPhone" placeholder="联系电话">
-      <input id="bookingDate" type="date">
-      <input id="bookingTime" type="time">
-      <input id="bookingPeople" type="number" placeholder="人数">
-      <input id="bookingRoom" placeholder="桌号 / 包间">
-      <input id="bookingNote" placeholder="备注：生日、忌口、儿童椅等">
-    </div>
-
-    <button onclick="addBooking()">保存预约</button>
-
-    <h3>预约列表</h3>
-    <div id="bookingList">暂无预约记录</div>
-  </div>
-</div>
-
-      <div id="analysis" class="page">
-        <div class="card">
-          <h2 id="titleAnalysis">客户分析</h2>
-          <div id="memberSummary" class="member"></div>
-          <div class="analysis-grid">
-            <div class="analysis-box"><h3 id="anaType">客户类型</h3><div id="typeAnalysis"></div></div>
-            <div class="analysis-box"><h3 id="anaScene">来店场景</h3><div id="sceneAnalysis"></div></div>
-            <div class="analysis-box"><h3 id="anaFood">菜品偏好</h3><div id="foodAnalysis"></div></div>
-            <div class="analysis-box"><h3 id="anaTaste">口味属性</h3><div id="tasteAnalysis"></div></div>
-            <div class="analysis-box"><h3 id="anaActive">活跃度</h3><div id="activeAnalysis"></div></div>
-            <div class="analysis-box"><h3 id="anaStore">门店分布</h3><div id="storeAnalysis"></div></div>
-          </div>
-        </div>
-      </div>
-     <div id="lineBooking" class="page">
-     <div class="card">
-
-        <h2>LINE预约入口</h2>
-
-      <h3>多店预约入口管理</h3>
-
-<p>本店一楼四川料理预约链接：</p >
-
-<input
-id="shop1Link"
-type="text"
-value="https://warm-froyo-b511b7.netlify.app/?store=1f"
-style="width:85%;padding:10px;margin-bottom:12px;"
->
-
-<button onclick="
-navigator.clipboard.writeText(document.getElementById('shop1Link').value);
-alert('链接已复制');
-">
-复制
-</button>
-<div style="margin:12px 0 25px 0;">
-    <p>二维码图片：</p >
-   <div
-id="shop1QR"
-style="width:160px;height:160px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">
-        后期放二维码
-    </div>
-<br>
-
-<input
-type="file"
-accept="image/*"
-onchange="previewQRCode(this,'shop1QR')"
->
-</div>
-<p>本店二楼火锅城预约链接：</p >
-
-<input
-id="shop2Link"
-type="text"
-value="https://warm-froyo-b511b7.netlify.app/?store=2f"
-style="width:85%;padding:10px;margin-bottom:12px;"
->
-
-<button onclick="
-navigator.clipboard.writeText(document.getElementById('shop2Link').value);
-alert('链接已复制');
-">
-复制
-</button>
-<div style="margin:12px 0 25px 0;">
-    <p>二维码图片：</p >
-    <div
-id="shop2QR"
-style="width:160px;height:160px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">
-        后期放二维码
-    </div>
-<br>
-
-<input
-type="file"
-accept="image/*"
-onchange="previewQRCode(this,'shop2QR')"
->
-<p>京都火锅城预约链接：</p >
-
-<input
-id="kyotoLink"
-type="text"
-value="https://warm-froyo-b511b7.netlify.app/?store=kyoto"
-style="width:85%;padding:10px;margin-bottom:12px;"
->
-
-<button onclick="
-navigator.clipboard.writeText(document.getElementById('kyotoLink').value);
-alert('链接已复制');
-">
-复制
-</button>
-<div style="margin:12px 0 25px 0;">
-    <p>二维码图片：</p >
-     <div
-id="kyotoQR"
-style="width:160px;height:160px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">
-        后期放二维码
-    </div>
-<br>
-
-<input
-type="file"
-accept="image/*"
-onchange="previewQRCode(this,'kyotoQR')"
->
-
-<p>PARCO芙蓉料理预约链接：</p >
-
-<input
-id="parcoLink"
-type="text"
-value="https://warm-froyo-b511b7.netlify.app/?store=parco"
-style="width:85%;padding:10px;margin-bottom:12px;"
->
-
-<button onclick="
-navigator.clipboard.writeText(document.getElementById('parcoLink').value);
-alert('链接已复制');
-">
-复制
-</button>
-<div style="margin:12px 0 25px 0;">
-    <p>二维码图片：</p >
-   <div
-id="parcoQR"
-style="width:160px;height:160px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;"
->
-后期放二维码
-</div>
-<br>
-<input
-type="file"
-accept="image/*"
-onchange="previewQRCode(this,'parcoQR')"
->
-<button onclick="saveBookingLinks()" style="margin-top:15px;padding:10px 18px;">
-保存预约链接
-</button>
-<p style="color:#666;">
-后期这里可以放置各店二维码图片，客人扫码后进入对应预约页面。
-</p >
-
-    </div>
-</div>
-      <div id="push" class="page">
-        <div class="card">
-          <h2 id="titlePush">LINE推送</h2>
-          <select id="pushTarget">
-            <option>全部会员</option>
-            <option>日本客人</option>
-            <option>中国客人</option>
-            <option>本月生日会员</option>
-            <option>30天未到店会员</option>
-            <option>90天沉睡会员</option>
-            <option>家庭聚餐客人</option>
-            <option>火锅偏好客人</option>
-            <option>不吃辣客人</option>
-          </select>
-          <input id="pushTitle" placeholder="推送标题">
-          <textarea id="pushContent" rows="5" placeholder="推送内容"></textarea>
-          <button onclick="sendPush()" class="red wide" id="pushBtn">模拟发送</button>
-          <div id="pushResult"></div>
-        </div>
-      </div>
-
-      <div id="settings" class="page">
-        <div class="card">
-          <h2 id="titleSettings">系统设置</h2>
-          <button onclick="exportMembers()" class="red">导出会员数据</button>
-          <button onclick="clearMembers()" class="danger">清空测试数据</button>
-        </div>
-      </div>
+      <div id="analysis" class="page"><div class="card"><h2 id="titleAnalysis">客户分析</h2><div id="memberSummary" class="member"></div><div class="analysis-grid"><div class="analysis-box"><h3 id="anaType">客户类型</h3><div id="typeAnalysis"></div></div><div class="analysis-box"><h3 id="anaScene">来店场景</h3><div id="sceneAnalysis"></div></div><div class="analysis-box"><h3 id="anaFood">菜品偏好</h3><div id="foodAnalysis"></div></div><div class="analysis-box"><h3 id="anaTaste">口味属性</h3><div id="tasteAnalysis"></div></div><div class="analysis-box"><h3 id="anaActive">活跃度</h3><div id="activeAnalysis"></div></div><div class="analysis-box"><h3 id="anaStore">门店分布</h3><div id="storeAnalysis"></div></div></div></div></div>
+      <div id="push" class="page"><div class="card"><h2 id="titlePush">LINE推送</h2><select id="pushTarget"><option>全部会员</option><option>日本客人</option><option>中国客人</option><option>本月生日会员</option><option>30天未到店会员</option><option>90天沉睡会员</option><option>家庭聚餐客人</option><option>火锅偏好客人</option><option>不吃辣客人</option></select><input id="pushTitle" placeholder="推送标题"><textarea id="pushContent" rows="5" placeholder="推送内容"></textarea><button onclick="sendPush()" class="red wide" id="pushBtn">模拟发送</button><div id="pushResult"></div></div></div>
+      <div id="settings" class="page"><div class="card"><h2 id="titleSettings">系统设置</h2><button onclick="exportMembers()" class="red">导出会员数据</button><button onclick="clearLocalCache()" class="danger">清空本地缓存</button><p class="sub">V6已经改为优先读取Supabase，清空这里只会清除本机缓存，不会删除云端会员。</p></div></div>
     </div>
   </div>
 </div>
