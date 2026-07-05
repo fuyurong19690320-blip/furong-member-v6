@@ -18,3 +18,14 @@ textarea{resize:vertical}button{cursor:pointer}
 .consume-row{display:grid;grid-template-columns:130px 120px 1fr;gap:10px;align-items:center;padding:12px 14px;border-top:1px solid #e5e7eb;background:#fff}
 .consume-row span{font-weight:900;color:#111827}.consume-row em{font-style:normal;color:#666}
 @media(max-width:800px){.consume-row{grid-template-columns:1fr;gap:4px}}
+
+/* V6.2 客户360档案 */
+.crm-panel{margin-top:14px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.06)}
+.crm-header{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:16px;background:linear-gradient(135deg,#fff7ed,#fef2f2);border-bottom:1px solid #e5e7eb}
+.crm-header b{display:block;font-size:22px;color:#111827}.crm-header span{display:inline-block;margin-top:6px;padding:4px 10px;border-radius:999px;background:#111827;color:white;font-weight:900;font-size:13px}
+.risk-low,.risk-mid,.risk-high{padding:8px 12px;border-radius:999px;font-weight:900;white-space:nowrap}.risk-low{background:#dcfce7;color:#166534}.risk-mid{background:#fef9c3;color:#854d0e}.risk-high{background:#fee2e2;color:#991b1b}
+.crm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:14px;background:#f9fafb}.crm-stat{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px}.crm-stat span{display:block;color:#666;font-size:13px}.crm-stat b{display:block;margin-top:6px;font-size:19px;color:#111827}
+.crm-section{padding:16px;border-top:1px solid #e5e7eb}.crm-section h3{margin:0 0 10px;color:#7b1e22}.crm-text{line-height:1.8;color:#333}
+.history-card{border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin:10px 0;background:#fff}.history-card-main{display:flex;justify-content:space-between;gap:10px;align-items:center}.history-card-main b{font-size:17px}.history-card-main strong{font-size:18px;color:#7b1e22}.history-meta{margin-top:8px;color:#666;font-size:14px;line-height:1.6}.booking-card .history-card-main strong{color:#2563eb}
+.empty-line{padding:12px;border-radius:12px;background:#f9fafb;color:#666}.mini-bar{margin:10px 0}.mini-bar-top{display:flex;justify-content:space-between;font-weight:800}.mini-bar-bg{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-top:6px}.mini-bar-fill{height:100%;background:#7b1e22;border-radius:999px}
+@media(max-width:800px){.crm-header{display:block}.risk-low,.risk-mid,.risk-high{display:inline-block;margin-top:10px}.history-card-main{display:block}.history-card-main strong{display:block;margin-top:5px}}
