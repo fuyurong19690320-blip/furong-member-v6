@@ -1,4 +1,4 @@
-/* V6.5 首页预约看板 + 新预约红点提醒 + 预约来源兼容优化 */
+/* V6.5.1 预约新增门店选择 + 首页预约看板 */
 const SUPABASE_URL = 'https://unrkdxrqmhgxlmgzxyqs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_optM3gsSn5pV-2aQo23Rpg_ndL99Rr_';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -384,6 +384,7 @@ async function addBooking(){
     booking_date:$('bookingDate').value,
     booking_time:$('bookingTime').value,
     people:Number($('bookingPeople').value||0),
+    store_code:$('bookingStore') ? $('bookingStore').value : '1f',
     table_no:$('bookingRoom').value.trim(),
     note:buildBookingNote(rawNote,{channel,purpose,childChair,seatRequest}),
     status:'已预约'
@@ -392,6 +393,7 @@ async function addBooking(){
   const {error}=await supabaseClient.from('bookings').insert([row]);
   if(error){ alert('预约保存失败：'+error.message); return; }
   ['bookingName','bookingPhone','bookingDate','bookingTime','bookingPeople','bookingRoom','bookingNote'].forEach(id=>$(id).value='');
+  if($('bookingStore')) $('bookingStore').value='1f';
   if($('bookingChannel')) $('bookingChannel').value='line';
   if($('bookingPurpose')) $('bookingPurpose').value='normal';
   if($('bookingChildChair')) $('bookingChildChair').value='no';
@@ -455,11 +457,12 @@ async function editBooking(id){
   const date=prompt('预约日期 YYYY-MM-DD',b.booking_date||todayStr()); if(date===null) return;
   const time=prompt('预约时间 HH:MM',b.booking_time||'18:00'); if(time===null) return;
   const people=Number(prompt('人数',b.people||'2')); if(!people){ alert('人数不正确'); return; }
+  const store_code=prompt('门店：1f=长堀桥1楼 / 2f=长堀桥2楼 / kyoto=京都店 / parco=PARCO店', b.store_code||'1f') || b.store_code || '1f';
   const channel=prompt('预约来源：line/google/phone/instagram/xiaohongshu/tiktok/walkin/koc/hotel/friend/other',meta.channel||'phone')||meta.channel||'phone';
   const purpose=prompt('预约目的：normal/birthday/family/company/business/friends/couple/tourist/other',meta.purpose||'normal')||meta.purpose||'normal';
   const table_no=prompt('桌号/包间',b.table_no||'')||'';
   const raw=prompt('备注',meta.raw||'')||'';
-  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
+  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,store_code,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
   if(error){ alert('修改失败：'+error.message); return; }
   alert('预约已修改'); await renderBookings(); await renderStats();
 }
@@ -468,7 +471,9 @@ async function changeBookingStatus(id,status){
   const {error}=await supabaseClient.from('bookings').update({status}).eq('id',id);
   if(error){ alert(error.message); return; }
   if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){ const member=bookingMemberByPhone(b.phone); if(member) await recordVisit(member.id); }
-  renderBookings(); renderStats();
+  await fetchBookings();
+  await renderBookings();
+  await renderStats();
 }
 async function deleteBooking(id){
   if(!confirm('确定删除这条预约吗？')) return;
