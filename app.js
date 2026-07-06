@@ -1,4 +1,4 @@
-/* V6.5.1 预约新增门店选择 + 首页预约看板 */
+/* V6.5.2 预约门店选择修正版 */
 const SUPABASE_URL = 'https://unrkdxrqmhgxlmgzxyqs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_optM3gsSn5pV-2aQo23Rpg_ndL99Rr_';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
