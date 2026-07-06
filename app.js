@@ -1,3 +1,4 @@
+/* V6.5 首页预约看板 + 新预约红点提醒 + 预约来源兼容优化 */
 const SUPABASE_URL = 'https://unrkdxrqmhgxlmgzxyqs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_optM3gsSn5pV-2aQo23Rpg_ndL99Rr_';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -151,7 +152,10 @@ function showPage(id){
   if(!currentUser) return;
   if(currentUser.role==='staff' && ['dashboard','members','analysis','push','settings'].includes(id)){ alert('店员账号无权查看此页面'); return; }
   if(currentUser.role==='manager' && id==='settings'){ alert('店长账号无权查看系统设置'); return; }
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); $(id).classList.add('active'); renderAll();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  $(id).classList.add('active');
+  if(id==='booking' && $('navBooking')){ $('navBooking').innerText='预约管理'; $('navBooking').style.background=''; }
+  renderAll();
 }
 
 async function saveMember(){
@@ -338,7 +342,28 @@ async function deleteMember(id){ if(!confirm('确定删除该会员吗？')) ret
 
 async function renderMembers(){ const box=$('memberList'); if(!box) return; if(!currentUser||currentUser.role==='staff'){ box.innerHTML='<div class="member">无权限查看</div>'; return; } const data=await fetchMembers(); box.innerHTML=data.length?data.map(m=>memberCard(m,false)).join(''):'<div class="member">暂无会员</div>'; }
 async function renderBirthday(mode=birthdayMode){ birthdayMode=mode; const now=new Date(); const cm=now.getMonth()+1, cd=now.getDate(); let data=await fetchMembers(); data=data.filter(m=>m.birthday); if(mode==='today') data=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm&&d.day===cd;}); if(mode==='month') data=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm;}); $('birthdayList').innerHTML=data.length?data.map(m=>memberCard(m,false)).join(''):'<div class="member">暂无生日会员</div>'; }
-async function renderStats(){ const data=await fetchMembers(); const bookings=await fetchBookings(); const now=new Date(); const cm=now.getMonth()+1; const today=todayStr(); $('statTotal').innerText=data.length; $('statBirth').innerText=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm;}).length; $('statVisit').innerText=data.filter(m=>(m.last_visit||'')===today).length; if($('statBooking')) $('statBooking').innerText=bookings.filter(b=>b.booking_date===today && b.status!=='已取消').length; if($('statSales')){ const {data:logs,error}=await supabaseClient.from('consume_logs').select('amount').eq('consume_date',today); $('statSales').innerText=error?'读取失败':yen((logs||[]).reduce((s,x)=>s+Number(x.amount||0),0)); } updateStatusText(); renderTodayBookings(); }
+async function renderStats(){
+  const data=await fetchMembers();
+  const bookings=await fetchBookings();
+  const now=new Date();
+  const cm=now.getMonth()+1;
+  const today=todayStr();
+  const todayBookings=bookings.filter(b=>b.booking_date===today);
+  const activeToday=todayBookings.filter(b=>!['已取消','No Show'].includes(b.status||''));
+  const arrivedToday=todayBookings.filter(b=>['已到店','已完成'].includes(b.status||'')).length;
+  const cancelToday=todayBookings.filter(b=>b.status==='已取消').length;
+  const noshowToday=todayBookings.filter(b=>b.status==='No Show').length;
+  $('statTotal').innerText=data.length;
+  $('statBirth').innerText=data.filter(m=>{const d=parseMonthDay(m.birthday); return d&&d.month===cm;}).length;
+  $('statVisit').innerText=data.filter(m=>(m.last_visit||'')===today).length;
+  if($('statBooking')) $('statBooking').innerText=activeToday.length;
+  if($('statSales')){
+    const {data:logs,error}=await supabaseClient.from('consume_logs').select('amount').eq('consume_date',today);
+    $('statSales').innerText=error?'读取失败':yen((logs||[]).reduce((s,x)=>s+Number(x.amount||0),0));
+  }
+  updateStatusText();
+  renderTodayBookings();
+}
 function updateStatusText(){ const s=getStatus(); const t=labels[lang]; const name=t[s==='open'?'open':s==='busy'?'busy':s==='stop'?'stop':'closed']; const emoji=s==='open'?'🟢':s==='busy'?'🟡':s==='stop'?'🔴':'⚫'; if($('statusResult')) $('statusResult').innerText=emoji+' 当前状态：'+name; if($('statStatus')) $('statStatus').innerText=name; }
 function changeStatus(s){ const t=labels[lang]; const name=t[s==='open'?'open':s==='busy'?'busy':s==='stop'?'stop':'closed']; if(confirm('确认切换为：'+name+'？')){ saveStatus(s); updateStatusText(); renderStats(); } }
 
@@ -371,7 +396,7 @@ async function addBooking(){
   if($('bookingPurpose')) $('bookingPurpose').value='normal';
   if($('bookingChildChair')) $('bookingChildChair').value='no';
   if($('bookingSeatRequest')) $('bookingSeatRequest').value='none';
-  alert('预约保存成功'); renderBookings(); renderStats();
+  alert('预约保存成功'); await renderBookings(); await renderStats();
 }
 function bookingFilterControls(bookings){
   const today=todayStr();
@@ -436,7 +461,7 @@ async function editBooking(id){
   const raw=prompt('备注',meta.raw||'')||'';
   const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
   if(error){ alert('修改失败：'+error.message); return; }
-  alert('预约已修改'); renderBookings(); renderStats();
+  alert('预约已修改'); await renderBookings(); await renderStats();
 }
 async function changeBookingStatus(id,status){
   const b=cacheBookings.find(x=>x.id===id); const oldStatus=b?b.status:'';
@@ -445,14 +470,32 @@ async function changeBookingStatus(id,status){
   if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){ const member=bookingMemberByPhone(b.phone); if(member) await recordVisit(member.id); }
   renderBookings(); renderStats();
 }
-async function deleteBooking(id){ if(!confirm('确定删除这条预约吗？')) return; const {error}=await supabaseClient.from('bookings').delete().eq('id',id); if(error){ alert(error.message); return; } alert('预约已删除'); renderBookings(); renderStats(); }
+async function deleteBooking(id){
+  if(!confirm('确定删除这条预约吗？')) return;
+  const {error}=await supabaseClient.from('bookings').delete().eq('id',id);
+  if(error){ alert('预约删除失败：'+error.message); return; }
+  alert('预约已删除');
+  await fetchBookings();
+  await renderBookings();
+  await renderStats();
+}
 function renderTodayBookings(){
   const box=$('todayBookingList'); if(!box) return;
-  const today=todayStr(); const data=cacheBookings.filter(b=>b.booking_date===today && bookingStatusGroup(b.status)!=='cancel').sort((a,b)=>String(a.booking_time).localeCompare(String(b.booking_time)));
-  const summary=Object.entries(countBy(data,b=>getBookingMeta(b.note).channel)).map(([k,v])=>`${channelName(k)}：${v}`).join('｜');
-  box.innerHTML=(summary?`<div class="member"><b>今日渠道：</b>${summary}</div>`:'')+(data.length?data.map(bookingCard).join(''):'<div class="member">今日暂无预约</div>');
+  const today=todayStr();
+  const allToday=cacheBookings.filter(b=>b.booking_date===today);
+  const data=allToday.filter(b=>!['已取消','No Show'].includes(b.status||'')).sort((a,b)=>String(a.booking_time).localeCompare(String(b.booking_time)));
+  const arrived=allToday.filter(b=>['已到店','已完成'].includes(b.status||'')).length;
+  const waiting=allToday.filter(b=>['待确认','已确认','已预约',''].includes(b.status||'')).length;
+  const cancel=allToday.filter(b=>b.status==='已取消').length;
+  const noshow=allToday.filter(b=>b.status==='No Show').length;
+  const people=data.reduce((s,b)=>s+Number(b.people||0),0);
+  const summary = `<div class="member">
+    <b>今日预约看板</b><br>
+    今日预约：${data.length}组｜预计人数：${people}人｜待到店：${waiting}组｜已到店：${arrived}组｜取消：${cancel}组｜No Show：${noshow}组<br>
+    <div style="margin-top:8px">${bookingSourceSummaryHtml(allToday)}</div>
+  </div>`;
+  box.innerHTML=summary + (data.length?data.map(bookingCard).join(''):'<div class="member">今日暂无预约</div>');
 }
-
 function buildLineLinks(){ const box=$('lineLinks'); if(!box) return; const list=[['shop1Link','本店一楼四川料理预约链接','1f','shop1QR'],['shop2Link','本店二楼火锅城预约链接','2f','shop2QR'],['kyotoLink','京都火锅城预约链接','kyoto','kyotoQR'],['parcoLink','PARCO芙蓉料理预约链接','parco','parcoQR']]; box.innerHTML=list.map(([id,title,store,qr])=>{const saved=localStorage.getItem(id)||`https://warm-froyo-b511b7.netlify.app/?store=${store}`; return `<p><b>${title}</b></p><div class="link-box"><input id="${id}" type="text" value="${saved}"><button class="small-btn" onclick="copyLink('${id}')">复制</button></div><div id="${qr}" class="qr-box">后期放二维码</div><input type="file" accept="image/*" onchange="previewQRCode(this,'${qr}')">`;}).join(''); }
 function copyLink(id){ const input=$(id); input.select(); input.setSelectionRange(0,99999); navigator.clipboard.writeText(input.value).then(()=>alert('链接已复制')).catch(()=>{document.execCommand('copy'); alert('链接已复制');}); }
 function saveBookingLinks(){ ['shop1Link','shop2Link','kyotoLink','parcoLink'].forEach(id=>{ if($(id)) localStorage.setItem(id,$(id).value); }); alert('预约链接已保存'); }
@@ -464,7 +507,11 @@ function clearLocalCache(){ if(confirm('确定清空本地缓存吗？不会删�
 async function renderAll(){ if(!currentUser) return; await renderStats(); if($('memberList')) renderMembers(); if($('bookingList')) renderBookings(); if($('birthdayList')) renderBirthday(birthdayMode); if($('memberSummary')) renderAnalysis(); }
 
 function playBookingSound(){ const audio=new Audio('https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg'); audio.play().catch(()=>{}); }
-async function checkNewBookingAlert(){ if(!supabaseClient || !currentUser) return; const {data,error}=await supabaseClient.from('bookings').select('id,name,booking_date,booking_time,people').order('id',{ascending:false}).limit(1); if(error||!data||!data.length) return; const newest=data[0]; if(lastBookingId===null){ lastBookingId=newest.id; return; } if(newest.id!==lastBookingId){ lastBookingId=newest.id; playBookingSound(); alert('有新的预约：'+newest.name+'｜'+newest.booking_date+' '+newest.booking_time+'｜'+newest.people+'位'); renderBookings(); renderStats(); } }
+async function checkNewBookingAlert(){ if(!supabaseClient || !currentUser) return; const {data,error}=await supabaseClient.from('bookings').select('id,name,booking_date,booking_time,people').order('id',{ascending:false}).limit(1); if(error||!data||!data.length) return; const newest=data[0]; if(lastBookingId===null){ lastBookingId=newest.id; return; } if(newest.id!==lastBookingId){ lastBookingId=newest.id; playBookingSound();
+      const nav=$('navBooking');
+      if(nav){ nav.innerText='预约管理 🔴'; nav.style.background='#dc2626'; }
+      alert('有新的预约：'+newest.name+'｜'+newest.booking_date+' '+newest.booking_time+'｜'+newest.people+'位');
+      renderBookings(); renderStats(); } }
 function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarted=true; checkNewBookingAlert(); setInterval(checkNewBookingAlert,30000); }
 
 // ===== 客人预约页面：LINE入口用 =====
