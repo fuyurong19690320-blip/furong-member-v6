@@ -24,6 +24,57 @@ const stores = {
   parco: 'PARCO店｜小籠包・四川料理'
 };
 
+
+const bookingChannels = {
+  line:'LINE官方', google:'Google地图', phone:'电话预约', instagram:'Instagram', xiaohongshu:'小红书',
+  tiktok:'TikTok', walkin:'到店预约', koc:'KOC达人', hotel:'酒店介绍', friend:'朋友介绍', other:'其他'
+};
+const bookingPurposes = {
+  normal:'普通用餐', birthday:'生日', family:'家庭聚餐', company:'公司聚餐', business:'商务宴请',
+  friends:'朋友聚会', couple:'情侣约会', tourist:'旅游', other:'其他'
+};
+const childChairLabels = { yes:'需要儿童椅', no:'不需要儿童椅' };
+const seatLabels = { none:'无座位要求', window:'靠窗', private:'包间', quiet:'安静位置', near_exit:'靠近出口', other:'其他' };
+let bookingFilter = { status:'active', channel:'all', keyword:'', date:'' };
+
+function channelName(v){ return bookingChannels[v] || v || '未登记'; }
+function purposeName(v){ return bookingPurposes[v] || v || '普通用餐'; }
+function getBookingMeta(note){
+  const out={channel:'other', purpose:'normal', childChair:'no', seatRequest:'none', firstSource:'', raw:''};
+  const text=String(note||'');
+  const lines=text.split(/\n/);
+  const raws=[];
+  lines.forEach(line=>{
+    if(line.startsWith('[渠道]')) out.channel=line.replace('[渠道]','').trim()||out.channel;
+    else if(line.startsWith('[目的]')) out.purpose=line.replace('[目的]','').trim()||out.purpose;
+    else if(line.startsWith('[儿童椅]')) out.childChair=line.replace('[儿童椅]','').trim()||out.childChair;
+    else if(line.startsWith('[座位]')) out.seatRequest=line.replace('[座位]','').trim()||out.seatRequest;
+    else if(line.startsWith('[首次来源]')) out.firstSource=line.replace('[首次来源]','').trim();
+    else raws.push(line);
+  });
+  out.raw=raws.join('\n').trim();
+  return out;
+}
+function buildBookingNote(raw, meta={}){
+  const channel=meta.channel||'other';
+  const purpose=meta.purpose||'normal';
+  const childChair=meta.childChair||'no';
+  const seatRequest=meta.seatRequest||'none';
+  const firstSource=meta.firstSource||channel;
+  const body=String(raw||'').trim();
+  return `[渠道]${channel}\n[首次来源]${firstSource}\n[目的]${purpose}\n[儿童椅]${childChair}\n[座位]${seatRequest}${body?'\n'+body:''}`;
+}
+function bookingStatusGroup(status){
+  if(status==='已取消') return 'cancel';
+  if(status==='No Show' || status==='爽约') return 'noshow';
+  if(status==='已到店' || status==='已完成') return 'done';
+  return 'active';
+}
+function bookingMemberByPhone(phone){
+  const n=String(phone||'').replace(/\D/g,'');
+  return cacheMembers.find(m=>String(m.phone||'').replace(/\D/g,'')===n);
+}
+
 const typeLabel = {
   customerType: {japanese:{zh:'日本客人',ja:'日本のお客様'}, chinese:{zh:'中国客人',ja:'中国のお客様'}, other:{zh:'其他外国客人',ja:'その他外国人'}, student:{zh:'学生',ja:'学生'}, tourist:{zh:'游客',ja:'観光客'}, vip:{zh:'VIP客人',ja:'VIP'}, unknown:{zh:'不确定',ja:'不明'}},
   visitScene: {family:{zh:'家庭聚餐',ja:'家族利用'}, company:{zh:'公司聚餐',ja:'会社利用'}, couple:{zh:'情侣',ja:'カップル'}, friends:{zh:'朋友聚会',ja:'友人同士'}, alone:{zh:'一个人',ja:'一人利用'}, tourist:{zh:'游客',ja:'観光客'}, nearby:{zh:'附近居民',ja:'近隣住民'}, regular:{zh:'熟客',ja:'常連'}, unknown:{zh:'不确定',ja:'不明'}},
@@ -179,12 +230,18 @@ async function showMemberStats(id){
     </div>`;
   }).join(''):'<div class="empty-line">暂无消费明细</div>';
 
-  const bookingHtml=bookings.length?bookings.slice(0,8).map(b=>`
+  const bookingStats={total:bookings.length, done:0, cancel:0, noshow:0};
+  const channelStats={};
+  bookings.forEach(b=>{ const g=bookingStatusGroup(b.status); if(g==='done') bookingStats.done++; if(g==='cancel') bookingStats.cancel++; if(g==='noshow') bookingStats.noshow++; const ch=getBookingMeta(b.note).channel; channelStats[ch]=(channelStats[ch]||0)+1; });
+  const channelStatsHtml=Object.entries(channelStats).map(([k,v])=>`${channelName(k)}：${v}次`).join('｜') || '暂无';
+  const bookingHtml=bookings.length?`<div class="history-card booking-card"><b>预约统计</b><div class="history-meta">总预约：${bookingStats.total}次｜已到店/完成：${bookingStats.done}次｜取消：${bookingStats.cancel}次｜No Show：${bookingStats.noshow}次<br>预约来源：${esc(channelStatsHtml)}</div></div>`+bookings.slice(0,8).map(b=>{
+    const meta=getBookingMeta(b.note);
+    return `
     <div class="history-card booking-card">
       <div class="history-card-main"><b>${esc(b.booking_date||'未定日期')} ${esc(b.booking_time||'')}</b><strong>${esc(b.status||'')}</strong></div>
-      <div class="history-meta">👥 ${esc(b.people||'')}位　🏪 ${esc(stores[b.store_code]||b.store_code||'未登记')}　📝 ${esc(b.note||'无备注')}</div>
-    </div>
-  `).join(''):'<div class="empty-line">暂无预约记录</div>';
+      <div class="history-meta">👥 ${esc(b.people||'')}位　🏪 ${esc(stores[b.store_code]||b.store_code||'未登记')}　📍 ${esc(channelName(meta.channel))}　🎯 ${esc(purposeName(meta.purpose))}　📝 ${esc(meta.raw||'无备注')}</div>
+    </div>`;
+  }).join(''):'<div class="empty-line">暂无预约记录</div>';
 
   box.innerHTML=`
     <div class="crm-panel">
@@ -289,12 +346,112 @@ function countBy(arr,fn){ const out={}; arr.forEach(x=>{const k=fn(x)||'unknown'
 function renderBars(targetId,data,labelFn){ const box=$(targetId); if(!box) return; const entries=Object.entries(data); const total=entries.reduce((s,e)=>s+e[1],0)||1; if(entries.length===0){ box.innerHTML='暂无数据'; return; } box.innerHTML=entries.map(([k,v])=>{const pct=Math.round(v/total*100); return `<div class="bar"><div class="bar-name"><span>${labelFn(k)}</span><span>${v}人</span></div><div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;}).join(''); }
 async function renderAnalysis(){ const data=await fetchMembers(); const total=data.length; const active=data.filter(m=>getActiveKey(m)==='active').length; const warning=data.filter(m=>getActiveKey(m)==='warning').length; const sleep=data.filter(m=>getActiveKey(m)==='sleep').length; const lost=data.filter(m=>getActiveKey(m)==='lost').length; const silver=data.filter(m=>getMemberLevel(m)==='银卡会员').length; const gold=data.filter(m=>getMemberLevel(m)==='金卡会员').length; const diamond=data.filter(m=>getMemberLevel(m)==='钻石会员').length; $('memberSummary').innerHTML=`<h3>会员总览</h3>会员总数：${total}<br>🟢 活跃会员：${active}<br>🟡 提醒会员：${warning}<br>🟠 沉睡会员：${sleep}<br>🔴 流失会员：${lost}<br><br>银卡会员：${silver}<br>金卡会员：${gold}<br>钻石会员：${diamond}<br><br><h4>30天以上未到店提醒</h4>${data.filter(m=>['sleep','lost'].includes(getActiveKey(m))).map(m=>'• '+m.name+'｜最后到店：'+(m.last_visit||'未记录')).join('<br>')||'暂无'}`; renderBars('typeAnalysis',countBy(data,m=>memberValue(m,'customer_type','customerType')),k=>label('customerType',k)); renderBars('sceneAnalysis',countBy(data,m=>memberValue(m,'scene','visitScene')),k=>label('visitScene',k)); renderBars('foodAnalysis',countBy(data,m=>memberValue(m,'food','foodPreference')),k=>label('foodPreference',k)); renderBars('tasteAnalysis',countBy(data,m=>memberValue(m,'taste','tastePreference')),k=>label('tastePreference',k)); renderBars('activeAnalysis',countBy(data,m=>getActiveKey(m)),k=>labels[lang][k]); renderBars('storeAnalysis',countBy(data,m=>memberValue(m,'store')||stores[m.store_code]||'未登记'),k=>k); }
 
-async function addBooking(){ const row={name:$('bookingName').value.trim(),phone:$('bookingPhone').value.trim(),booking_date:$('bookingDate').value,booking_time:$('bookingTime').value,people:Number($('bookingPeople').value||0),table_no:$('bookingRoom').value.trim(),note:$('bookingNote').value.trim(),status:'已预约'}; if(!row.name||!row.phone||!row.booking_date||!row.booking_time||!row.people){ alert('请输入姓名、电话、日期、时间、人数'); return; } const {error}=await supabaseClient.from('bookings').insert([row]); if(error){ alert('预约保存失败：'+error.message); return; } ['bookingName','bookingPhone','bookingDate','bookingTime','bookingPeople','bookingRoom','bookingNote'].forEach(id=>$(id).value=''); alert('预约保存成功'); renderBookings(); renderStats(); }
-async function renderBookings(){ const list=$('bookingList'); if(!list) return; const bookings=await fetchBookings(); const totalPeople=bookings.reduce((s,b)=>s+Number(b.people||0),0); const booked=bookings.filter(b=>b.status==='已预约').length; const arrived=bookings.filter(b=>b.status==='已到店').length; const cancel=bookings.filter(b=>b.status==='已取消').length; if($('bookingTodayStats')) $('bookingTodayStats').innerHTML=`<div class="member"><b>预约统计</b><br>总预约：${bookings.length}组｜总人数：${totalPeople}人｜已预约：${booked}组｜已到店：${arrived}组｜已取消：${cancel}组</div>`; if(!bookings.length){ list.innerHTML='暂无预约记录'; return; } list.innerHTML=bookings.map(b=>bookingCard(b)).join(''); }
-function bookingCard(b){ return `<div class="member"><strong>${b.name||''}</strong><br>${b.people||''}位｜${b.booking_date||''} ${b.booking_time||''}<br>电话：${currentUser&&currentUser.role==='admin'?b.phone:maskPhone(b.phone)}<br>门店：${stores[b.store_code]||b.store_code||'未登记'}<br>桌号：${b.table_no||''}<br>备注：${b.note||'无'}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option></select><div class="action-row"><button class="red" onclick="deleteBooking(${b.id})">删除预约</button></div></div>`; }
-async function changeBookingStatus(id,status){ const b=cacheBookings.find(x=>x.id===id); const oldStatus=b?b.status:''; const {error}=await supabaseClient.from('bookings').update({status}).eq('id',id); if(error){ alert(error.message); return; } if(oldStatus!=='已到店' && status==='已到店' && b&&b.phone){ const member=cacheMembers.find(m=>String(m.phone||'').replace(/\D/g,'')===String(b.phone||'').replace(/\D/g,'')); if(member) await recordVisit(member.id); } renderBookings(); renderStats(); }
+
+async function addBooking(){
+  const channel=$('bookingChannel') ? $('bookingChannel').value : 'phone';
+  const purpose=$('bookingPurpose') ? $('bookingPurpose').value : 'normal';
+  const childChair=$('bookingChildChair') ? $('bookingChildChair').value : 'no';
+  const seatRequest=$('bookingSeatRequest') ? $('bookingSeatRequest').value : 'none';
+  const rawNote=$('bookingNote').value.trim();
+  const row={
+    name:$('bookingName').value.trim(),
+    phone:$('bookingPhone').value.trim(),
+    booking_date:$('bookingDate').value,
+    booking_time:$('bookingTime').value,
+    people:Number($('bookingPeople').value||0),
+    table_no:$('bookingRoom').value.trim(),
+    note:buildBookingNote(rawNote,{channel,purpose,childChair,seatRequest}),
+    status:'已预约'
+  };
+  if(!row.name||!row.phone||!row.booking_date||!row.booking_time||!row.people){ alert('请输入姓名、电话、日期、时间、人数'); return; }
+  const {error}=await supabaseClient.from('bookings').insert([row]);
+  if(error){ alert('预约保存失败：'+error.message); return; }
+  ['bookingName','bookingPhone','bookingDate','bookingTime','bookingPeople','bookingRoom','bookingNote'].forEach(id=>$(id).value='');
+  if($('bookingChannel')) $('bookingChannel').value='line';
+  if($('bookingPurpose')) $('bookingPurpose').value='normal';
+  if($('bookingChildChair')) $('bookingChildChair').value='no';
+  if($('bookingSeatRequest')) $('bookingSeatRequest').value='none';
+  alert('预约保存成功'); renderBookings(); renderStats();
+}
+function bookingFilterControls(bookings){
+  const today=todayStr();
+  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const countByChannel=countBy(bookings,b=>getBookingMeta(b.note).channel);
+  const channelBtns=['all',...Object.keys(bookingChannels)].map(ch=>`<button class="filter-chip ${bookingFilter.channel===ch?'active':''}" onclick="setBookingFilter('channel','${ch}')">${ch==='all'?'全部来源':channelName(ch)}${ch==='all'?'':' '+(countByChannel[ch]||0)}</button>`).join('');
+  return `<div class="booking-filter-box">
+    <div class="filter-row">
+      <button class="filter-chip ${bookingFilter.status==='active'?'active':''}" onclick="setBookingFilter('status','active')">待到店</button>
+      <button class="filter-chip ${bookingFilter.date===today?'active':''}" onclick="setBookingFilter('date','${today}')">今日</button>
+      <button class="filter-chip ${bookingFilter.date===tomorrow?'active':''}" onclick="setBookingFilter('date','${tomorrow}')">明日</button>
+      <button class="filter-chip ${bookingFilter.status==='done'?'active':''}" onclick="setBookingFilter('status','done')">已完成</button>
+      <button class="filter-chip ${bookingFilter.status==='cancel'?'active':''}" onclick="setBookingFilter('status','cancel')">已取消</button>
+      <button class="filter-chip ${bookingFilter.status==='noshow'?'active':''}" onclick="setBookingFilter('status','noshow')">No Show</button>
+      <button class="filter-chip" onclick="clearBookingFilter()">清除筛选</button>
+    </div>
+    <div class="filter-row">${channelBtns}</div>
+    <div class="filter-row"><input id="bookingKeyword" placeholder="搜索姓名 / 电话 / 备注" value="${esc(bookingFilter.keyword)}" oninput="setBookingFilter('keyword',this.value)"><input id="bookingFilterDate" type="date" value="${esc(bookingFilter.date)}" onchange="setBookingFilter('date',this.value)"></div>
+  </div>`;
+}
+function setBookingFilter(key,value){ bookingFilter[key]=value; renderBookings(); }
+function clearBookingFilter(){ bookingFilter={status:'active',channel:'all',keyword:'',date:''}; renderBookings(); }
+function applyBookingFilter(bookings){
+  let out=[...bookings];
+  if(bookingFilter.status && bookingFilter.status!=='all') out=out.filter(b=>bookingStatusGroup(b.status)===bookingFilter.status);
+  if(bookingFilter.channel && bookingFilter.channel!=='all') out=out.filter(b=>getBookingMeta(b.note).channel===bookingFilter.channel);
+  if(bookingFilter.date) out=out.filter(b=>b.booking_date===bookingFilter.date);
+  const kw=String(bookingFilter.keyword||'').trim().toLowerCase();
+  if(kw) out=out.filter(b=>[b.name,b.phone,b.booking_date,b.booking_time,b.note,b.table_no,stores[b.store_code]].join(' ').toLowerCase().includes(kw));
+  return out;
+}
+async function renderBookings(){
+  const list=$('bookingList'); if(!list) return;
+  const bookings=await fetchBookings();
+  const totalPeople=bookings.reduce((s,b)=>s+Number(b.people||0),0);
+  const active=bookings.filter(b=>bookingStatusGroup(b.status)==='active').length;
+  const arrived=bookings.filter(b=>bookingStatusGroup(b.status)==='done').length;
+  const cancel=bookings.filter(b=>bookingStatusGroup(b.status)==='cancel').length;
+  const noshow=bookings.filter(b=>bookingStatusGroup(b.status)==='noshow').length;
+  const channelSummary=Object.entries(countBy(bookings,b=>getBookingMeta(b.note).channel)).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${channelName(k)}：${v}组`).join('｜') || '暂无渠道数据';
+  if($('bookingTodayStats')) $('bookingTodayStats').innerHTML=`<div class="member"><b>预约统计</b><br>总预约：${bookings.length}组｜总人数：${totalPeople}人｜待到店：${active}组｜已完成：${arrived}组｜已取消：${cancel}组｜No Show：${noshow}组<br>来源统计：${channelSummary}</div>${bookingFilterControls(bookings)}`;
+  const filtered=applyBookingFilter(bookings).sort((a,b)=>String(a.booking_date||'').localeCompare(String(b.booking_date||'')) || String(a.booking_time||'').localeCompare(String(b.booking_time||'')));
+  list.innerHTML=filtered.length?filtered.map(b=>bookingCard(b)).join(''):'暂无预约记录';
+}
+function bookingCard(b){
+  const meta=getBookingMeta(b.note);
+  const member=bookingMemberByPhone(b.phone);
+  const memberLine=member?`<br><span class="badge">老会员</span> ${getMemberLevel(member)}｜累计：${yen(member.total_spent)}｜到店：${Number(member.visit_count||0)}次｜最后到店：${member.last_visit||'未记录'}`:'<br><span class="badge badge-gray">新客户/未入会</span>';
+  return `<div class="member booking-item"><strong>${esc(b.name||'')}</strong><br>${esc(b.people||'')}位｜${esc(b.booking_date||'')} ${esc(b.booking_time||'')}<br>电话：${currentUser&&currentUser.role==='admin'?esc(b.phone):maskPhone(b.phone)}<br>门店：${esc(stores[b.store_code]||b.store_code||'未登记')}｜桌号：${esc(b.table_no||'未登记')}<br>来源：<b>${esc(channelName(meta.channel))}</b>｜首次来源：${esc(channelName(meta.firstSource||meta.channel))}<br>目的：${esc(purposeName(meta.purpose))}｜儿童椅：${esc(childChairLabels[meta.childChair]||meta.childChair)}｜座位：${esc(seatLabels[meta.seatRequest]||meta.seatRequest)}<br>备注：${esc(meta.raw||'无')}${memberLine}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="待确认" ${b.status==='待确认'?'selected':''}>待确认</option><option value="已确认" ${b.status==='已确认'?'selected':''}>已确认</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已完成" ${b.status==='已完成'?'selected':''}>已完成</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option><option value="No Show" ${b.status==='No Show'?'selected':''}>No Show</option></select><div class="action-row"><button class="green" onclick="changeBookingStatus(${b.id},'已到店')">已到店</button><button class="blue" onclick="editBooking(${b.id})">修改预约</button><button class="orange" onclick="changeBookingStatus(${b.id},'No Show')">No Show</button><button class="red" onclick="deleteBooking(${b.id})">删除预约</button></div></div>`;
+}
+async function editBooking(id){
+  const b=cacheBookings.find(x=>x.id===id); if(!b){ alert('找不到预约'); return; }
+  const meta=getBookingMeta(b.note);
+  const name=prompt('客户姓名',b.name||''); if(name===null) return;
+  const phone=prompt('联系电话',b.phone||''); if(phone===null) return;
+  const date=prompt('预约日期 YYYY-MM-DD',b.booking_date||todayStr()); if(date===null) return;
+  const time=prompt('预约时间 HH:MM',b.booking_time||'18:00'); if(time===null) return;
+  const people=Number(prompt('人数',b.people||'2')); if(!people){ alert('人数不正确'); return; }
+  const channel=prompt('预约来源：line/google/phone/instagram/xiaohongshu/tiktok/walkin/koc/hotel/friend/other',meta.channel||'phone')||meta.channel||'phone';
+  const purpose=prompt('预约目的：normal/birthday/family/company/business/friends/couple/tourist/other',meta.purpose||'normal')||meta.purpose||'normal';
+  const table_no=prompt('桌号/包间',b.table_no||'')||'';
+  const raw=prompt('备注',meta.raw||'')||'';
+  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
+  if(error){ alert('修改失败：'+error.message); return; }
+  alert('预约已修改'); renderBookings(); renderStats();
+}
+async function changeBookingStatus(id,status){
+  const b=cacheBookings.find(x=>x.id===id); const oldStatus=b?b.status:'';
+  const {error}=await supabaseClient.from('bookings').update({status}).eq('id',id);
+  if(error){ alert(error.message); return; }
+  if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){ const member=bookingMemberByPhone(b.phone); if(member) await recordVisit(member.id); }
+  renderBookings(); renderStats();
+}
 async function deleteBooking(id){ if(!confirm('确定删除这条预约吗？')) return; const {error}=await supabaseClient.from('bookings').delete().eq('id',id); if(error){ alert(error.message); return; } alert('预约已删除'); renderBookings(); renderStats(); }
-function renderTodayBookings(){ const box=$('todayBookingList'); if(!box) return; const today=todayStr(); const data=cacheBookings.filter(b=>b.booking_date===today && b.status!=='已取消').sort((a,b)=>String(a.booking_time).localeCompare(String(b.booking_time))); box.innerHTML=data.length?data.map(bookingCard).join(''):'<div class="member">今日暂无预约</div>'; }
+function renderTodayBookings(){
+  const box=$('todayBookingList'); if(!box) return;
+  const today=todayStr(); const data=cacheBookings.filter(b=>b.booking_date===today && bookingStatusGroup(b.status)!=='cancel').sort((a,b)=>String(a.booking_time).localeCompare(String(b.booking_time)));
+  const summary=Object.entries(countBy(data,b=>getBookingMeta(b.note).channel)).map(([k,v])=>`${channelName(k)}：${v}`).join('｜');
+  box.innerHTML=(summary?`<div class="member"><b>今日渠道：</b>${summary}</div>`:'')+(data.length?data.map(bookingCard).join(''):'<div class="member">今日暂无预约</div>');
+}
 
 function buildLineLinks(){ const box=$('lineLinks'); if(!box) return; const list=[['shop1Link','本店一楼四川料理预约链接','1f','shop1QR'],['shop2Link','本店二楼火锅城预约链接','2f','shop2QR'],['kyotoLink','京都火锅城预约链接','kyoto','kyotoQR'],['parcoLink','PARCO芙蓉料理预约链接','parco','parcoQR']]; box.innerHTML=list.map(([id,title,store,qr])=>{const saved=localStorage.getItem(id)||`https://warm-froyo-b511b7.netlify.app/?store=${store}`; return `<p><b>${title}</b></p><div class="link-box"><input id="${id}" type="text" value="${saved}"><button class="small-btn" onclick="copyLink('${id}')">复制</button></div><div id="${qr}" class="qr-box">后期放二维码</div><input type="file" accept="image/*" onchange="previewQRCode(this,'${qr}')">`;}).join(''); }
 function copyLink(id){ const input=$(id); input.select(); input.setSelectionRange(0,99999); navigator.clipboard.writeText(input.value).then(()=>alert('链接已复制')).catch(()=>{document.execCommand('copy'); alert('链接已复制');}); }
@@ -313,6 +470,6 @@ function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarte
 // ===== 客人预约页面：LINE入口用 =====
 (function(){
   const params=new URLSearchParams(window.location.search); const storeCode=params.get('store'); if(!storeCode) return; const storeName=stores[storeCode]||'大阪芙蓉苑';
-  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
-  window.submitGuestBooking=async function(){ const name=$('guestName').value.trim(); const phone=$('guestPhone').value.trim(); const date=$('guestDate').value; const time=$('guestTime').value; const people=$('guestPeople').value; const note=$('guestNote').value.trim(); if(!name||!phone||!date||!time||!people){ alert('お名前・電話・日付・時間・人数を入力してください。'); return; } const {error}=await supabaseClient.from('bookings').insert([{name,phone,store_code:storeCode,booking_date:date,booking_time:time,people:Number(people),table_no:'',note,status:'已预约'}]); if(error){ alert('预约保存失败：'+error.message); return; } document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:80px auto;background:white;border-radius:18px;padding:28px;text-align:center;"><h1 style="color:#8b0000;">预约已提交</h1><p>ありがとうございます。ご予約を受け付けました。</p><p><b>${storeName}</b></p><p>${date} ${time} / ${people}名様</p></div></div>`; };
+  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
+  window.submitGuestBooking=async function(){ const name=$('guestName').value.trim(); const phone=$('guestPhone').value.trim(); const date=$('guestDate').value; const time=$('guestTime').value; const people=$('guestPeople').value; const note=$('guestNote').value.trim(); const purpose=$('guestPurpose').value; const childChair=$('guestChildChair').value; const seatRequest=$('guestSeatRequest').value; if(!name||!phone||!date||!time||!people){ alert('お名前・電話・日付・時間・人数を入力してください。'); return; } const {error}=await supabaseClient.from('bookings').insert([{name,phone,store_code:storeCode,booking_date:date,booking_time:time,people:Number(people),table_no:'',note:buildBookingNote(note,{channel:'line',purpose,childChair,seatRequest}),status:'已预约'}]); if(error){ alert('预约保存失败：'+error.message); return; } document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:80px auto;background:white;border-radius:18px;padding:28px;text-align:center;"><h1 style="color:#8b0000;">预约已提交</h1><p>ありがとうございます。ご予約を受け付けました。</p><p><b>${storeName}</b></p><p>${date} ${time} / ${people}名様</p></div></div>`; };
 })();
