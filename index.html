@@ -10,7 +10,7 @@
 <div id="loginPage" class="login-wrap">
   <div class="login-card">
     <h1>大阪芙蓉苑</h1>
-    <p>会员系统 V6 / 会員システム</p>
+    <p>会员系统 V6.7 / 会員システム</p>
     <label>账号</label><input id="loginUser" placeholder="admin / manager / staff">
     <label>密码</label><input id="loginPass" type="password" placeholder="1234">
     <button onclick="login()">登录</button>
@@ -20,7 +20,7 @@
 
 <div id="app" style="display:none;">
   <div class="topbar">
-    <div><div class="logo">大阪芙蓉苑 会员系统 V6</div><div id="roleText" class="role-text"></div></div>
+    <div><div class="logo">大阪芙蓉苑 会员系统 V6.7</div><div id="roleText" class="role-text"></div></div>
     <div class="top-actions"><button onclick="setLang('zh')" class="small-btn">中文</button><button onclick="setLang('ja')" class="small-btn">日本語</button><button onclick="logout()" class="logout-btn" id="logoutBtn">退出</button></div>
   </div>
   <div class="layout">
@@ -48,7 +48,7 @@
           <div class="stat-card"><div id="statStatusLabel">当前状态</div><b id="statStatus">营业中</b></div>
         </div>
         <div class="card"><h2 id="dashboardTitle">今日操作</h2><div class="quick-grid"><button onclick="showPage('search')" class="quick" id="quickSearch">会员查询</button><button onclick="showPage('register')" class="quick" id="quickRegister">新增会员</button><button onclick="showPage('booking')" class="quick">预约管理</button><button onclick="showPage('analysis')" class="quick manager-only" id="quickAnalysis">客户分析</button></div></div>
-        <div class="card"><h2>今日预约</h2><div id="todayBookingList">读取中...</div></div>
+        <div class="card"><h2>今日预约</h2><div id="todayBookingList">读取中...</div></div><div class="card"><h2>今日渠道成交</h2><div id="dashboardChannelStats">读取中...</div></div>
       </div>
 
       <div id="search" class="page"><div class="card staff-main"><h2 id="titleSearch">会员查询</h2><p class="sub" id="searchSub">输入电话后4位，店员端只显示隐藏后的电话。</p><input id="searchPhone" placeholder="输入电话后4位" inputmode="numeric" maxlength="4"><button onclick="searchMember()" class="red wide" id="searchBtn">查询</button><div id="searchResult"></div></div></div>
@@ -63,7 +63,7 @@
 
       <div id="booking" class="page"><div class="card"><h2>预约管理</h2><div id="bookingTodayStats"></div><div class="form-grid">
 <input id="bookingName" placeholder="客户姓名"><input id="bookingPhone" placeholder="联系电话"><input id="bookingDate" type="date"><input id="bookingTime" type="time"><input id="bookingPeople" type="number" placeholder="人数"><input id="bookingRoom" placeholder="桌号 / 包间">
-<select id="bookingChannel"><option value="line">LINE官方</option><option value="google">Google地图</option><option value="phone">电话预约</option><option value="instagram">Instagram</option><option value="xiaohongshu">小红书</option><option value="tiktok">TikTok</option><option value="walkin">到店预约</option><option value="koc">KOC达人</option><option value="hotel">酒店介绍</option><option value="friend">朋友介绍</option><option value="other">其他</option></select>
+<select id="bookingChannel"><option value="line">LINE官方</option><option value="google">Google地图</option><option value="phone">电话预约</option><option value="instagram">Instagram</option><option value="xiaohongshu">小红书</option><option value="tiktok">TikTok</option><option value="walkin">到店预约</option><option value="koc">KOC达人</option><option value="hotel">酒店介绍</option><option value="friend">朋友介绍</option><option value="website">官网预约</option><option value="wechat">微信预约</option><option value="tabelog">食べログ</option><option value="gurunavi">ぐるなび</option><option value="hotpepper">HotPepper</option><option value="other">其他</option></select>
 <select id="bookingPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select>
 <select id="bookingChildChair"><option value="no">不需要儿童椅</option><option value="yes">需要儿童椅</option></select>
 <select id="bookingSeatRequest"><option value="none">无座位要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="near_exit">靠近出口</option><option value="other">其他</option></select>
