@@ -34,7 +34,7 @@
       <button onclick="showPage('booking')" id="navBooking">预约管理</button>
       <button onclick="showPage('lineBooking')" id="navLineBooking">LINE预约入口</button>
       <button onclick="showPage('analysis')" id="navAnalysis">客户分析</button>
-      <button onclick="showPage('push')" id="navPush">LINE推送</button>
+      <button onclick="showPage('push')" id="navPush">LINE推送</button><button onclick="showPage('lineReminder')">LINE提醒设置</button>
       <button onclick="showPage('settings')" id="navSettings">系统设置</button>
     </div>
     <div class="content">
@@ -70,6 +70,39 @@
 <input id="bookingNote" placeholder="备注：生日、忌口、儿童椅等"></div><button onclick="addBooking()" class="red">保存预约</button><h3>预约列表</h3><div id="bookingList">暂无预约记录</div></div></div>
 
       <div id="lineBooking" class="page"><div class="card"><h2>LINE预约入口</h2><p class="sub">客人扫码后进入对应门店预约页面。二维码图片目前是本地预览，刷新后会消失；正式版可再接 Supabase Storage。</p><div id="lineLinks"></div><button onclick="saveBookingLinks()" class="red">保存预约链接</button></div></div>
+
+
+      <div id="lineReminder" class="page">
+        <div class="card">
+          <h2>LINE预约提醒设置</h2>
+          <p class="sub">当前版本为准备版：只管理提醒规则和提醒状态。正式自动发送需要下一步接 Webhook / Supabase 定时任务。</p>
+          <div class="member">
+            <h3>提醒规则</h3>
+            <label><input type="checkbox" id="lineReminderEnabled" checked> 开启LINE预约提醒</label><br>
+            <label><input type="checkbox" id="lineReminder24" checked> 提前24小时提醒</label><br>
+            <label><input type="checkbox" id="lineReminder2" checked> 提前2小时提醒</label><br>
+            <label><input type="checkbox" id="lineReminderOnlyLine" checked disabled> 只提醒来源为 LINE官方 的预约</label>
+            <br><br>
+            <button class="red" onclick="saveLineReminderSettings()">保存设置</button>
+          </div>
+          <div class="member">
+            <h3>提醒模板</h3>
+            <textarea id="lineReminderTemplate" rows="7" style="width:100%;font-size:16px;border:1px solid #ddd;border-radius:12px;padding:12px;">您好，感谢您的预约。
+
+您预约的是：
+{门店}
+{日期} {时间}
+{人数}位
+
+期待您的光临！
+——芙蓉苑</textarea>
+            <br><br>
+            <button class="blue" onclick="saveLineReminderTemplate()">保存模板</button>
+          </div>
+          <h3>待提醒预约</h3>
+          <div id="lineReminderList">读取中...</div>
+        </div>
+      </div>
 
       <div id="analysis" class="page"><div class="card"><h2 id="titleAnalysis">客户分析</h2><div id="memberSummary" class="member"></div><div class="analysis-grid"><div class="analysis-box"><h3 id="anaType">客户类型</h3><div id="typeAnalysis"></div></div><div class="analysis-box"><h3 id="anaScene">来店场景</h3><div id="sceneAnalysis"></div></div><div class="analysis-box"><h3 id="anaFood">菜品偏好</h3><div id="foodAnalysis"></div></div><div class="analysis-box"><h3 id="anaTaste">口味属性</h3><div id="tasteAnalysis"></div></div><div class="analysis-box"><h3 id="anaActive">活跃度</h3><div id="activeAnalysis"></div></div><div class="analysis-box"><h3 id="anaStore">门店分布</h3><div id="storeAnalysis"></div></div></div></div></div>
       <div id="push" class="page"><div class="card"><h2 id="titlePush">LINE推送</h2><select id="pushTarget"><option>全部会员</option><option>日本客人</option><option>中国客人</option><option>本月生日会员</option><option>30天未到店会员</option><option>90天沉睡会员</option><option>家庭聚餐客人</option><option>火锅偏好客人</option><option>不吃辣客人</option></select><input id="pushTitle" placeholder="推送标题"><textarea id="pushContent" rows="5" placeholder="推送内容"></textarea><button onclick="sendPush()" class="red wide" id="pushBtn">模拟发送</button><div id="pushResult"></div></div></div>
