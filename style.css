@@ -35,3 +35,11 @@ textarea{resize:vertical}button{cursor:pointer}
 .mini-actions button{border:0;border-radius:9px;padding:8px 12px;color:#fff;font-weight:900;cursor:pointer}
 .mini-edit{background:#2563eb}.mini-delete{background:#dc2626}
 @media(max-width:800px){.mini-actions button{flex:1}}
+
+/* V6.4 预约渠道管理 */
+.booking-filter-box{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-top:12px}
+.filter-chip{background:#eee;border:0;border-radius:999px;padding:10px 14px;font-weight:900;color:#111827}
+.filter-chip.active{background:#7b1e22;color:#fff}
+.booking-item{border-left:5px solid #7b1e22}
+.form-grid select{margin-bottom:0}
+@media(max-width:800px){.filter-chip{flex:1}.booking-filter-box input{width:100%}}
