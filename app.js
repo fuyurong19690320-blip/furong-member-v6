@@ -1,4 +1,4 @@
-/* V6.5 首页预约看板 + 新预约红点提醒 + 预约来源兼容优化 */
+/* V6.7 预约来源分析 + 渠道统计增强 + 缺失函数修复 */
 const SUPABASE_URL = 'https://unrkdxrqmhgxlmgzxyqs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_optM3gsSn5pV-2aQo23Rpg_ndL99Rr_';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -28,7 +28,8 @@ const stores = {
 
 const bookingChannels = {
   line:'LINE官方', google:'Google地图', phone:'电话预约', instagram:'Instagram', xiaohongshu:'小红书',
-  tiktok:'TikTok', walkin:'到店预约', koc:'KOC达人', hotel:'酒店介绍', friend:'朋友介绍', other:'其他'
+  tiktok:'TikTok', walkin:'到店预约', koc:'KOC达人', hotel:'酒店介绍', friend:'朋友介绍',
+  website:'官网预约', wechat:'微信预约', tabelog:'食べログ', gurunavi:'ぐるなび', hotpepper:'HotPepper', other:'其他'
 };
 const bookingPurposes = {
   normal:'普通用餐', birthday:'生日', family:'家庭聚餐', company:'公司聚餐', business:'商务宴请',
@@ -46,13 +47,26 @@ function getBookingMeta(note){
   const lines=text.split(/\n/);
   const raws=[];
   lines.forEach(line=>{
-    if(line.startsWith('[渠道]')) out.channel=line.replace('[渠道]','').trim()||out.channel;
-    else if(line.startsWith('[目的]')) out.purpose=line.replace('[目的]','').trim()||out.purpose;
-    else if(line.startsWith('[儿童椅]')) out.childChair=line.replace('[儿童椅]','').trim()||out.childChair;
-    else if(line.startsWith('[座位]')) out.seatRequest=line.replace('[座位]','').trim()||out.seatRequest;
-    else if(line.startsWith('[首次来源]')) out.firstSource=line.replace('[首次来源]','').trim();
-    else raws.push(line);
+    const clean=line.trim();
+    if(clean.startsWith('[渠道]')) out.channel=clean.replace('[渠道]','').trim()||out.channel;
+    else if(clean.startsWith('[目的]')) out.purpose=clean.replace('[目的]','').trim()||out.purpose;
+    else if(clean.startsWith('[儿童椅]')) out.childChair=clean.replace('[儿童椅]','').trim()||out.childChair;
+    else if(clean.startsWith('[座位]')) out.seatRequest=clean.replace('[座位]','').trim()||out.seatRequest;
+    else if(clean.startsWith('[首次来源]')) out.firstSource=clean.replace('[首次来源]','').trim();
+    else if(clean) raws.push(clean);
   });
+  const lowered=text.toLowerCase();
+  if(out.channel==='other' && text){
+    if(lowered.includes('line') || text.includes('ライン')) out.channel='line';
+    else if(lowered.includes('google') || text.includes('グーグル')) out.channel='google';
+    else if(text.includes('电话') || text.includes('電話')) out.channel='phone';
+    else if(lowered.includes('instagram') || lowered.includes('ins')) out.channel='instagram';
+    else if(text.includes('小红书') || lowered.includes('xiaohongshu')) out.channel='xiaohongshu';
+    else if(lowered.includes('tiktok') || text.includes('抖音')) out.channel='tiktok';
+    else if(text.includes('到店') || lowered.includes('walk')) out.channel='walkin';
+    else if(text.includes('ホテル') || text.includes('酒店')) out.channel='hotel';
+  }
+  if(!out.firstSource) out.firstSource=out.channel;
   out.raw=raws.join('\n').trim();
   return out;
 }
@@ -74,6 +88,25 @@ function bookingStatusGroup(status){
 function bookingMemberByPhone(phone){
   const n=String(phone||'').replace(/\D/g,'');
   return cacheMembers.find(m=>String(m.phone||'').replace(/\D/g,'')===n);
+}
+
+function bookingSourceSummaryHtml(bookings){
+  const rows=Object.entries(countBy(bookings||[], b=>getBookingMeta(b.note).channel)).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return '<span class="channel-empty">暂无来源数据</span>';
+  const total=rows.reduce((s,x)=>s+x[1],0)||1;
+  return `<div class="channel-pills">${rows.map(([k,v])=>`<span class="channel-pill">${esc(channelName(k))} <b>${v}</b><small>${Math.round(v/total*100)}%</small></span>`).join('')}</div>`;
+}
+function bookingConversionSummaryHtml(bookings){
+  const rows=Object.entries(countBy(bookings||[], b=>getBookingMeta(b.note).channel)).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return '<div class="empty-line">暂无渠道成交数据</div>';
+  return rows.map(([ch,total])=>{
+    const list=(bookings||[]).filter(b=>getBookingMeta(b.note).channel===ch);
+    const arrived=list.filter(b=>['已到店','已完成'].includes(b.status||'')).length;
+    const cancel=list.filter(b=>b.status==='已取消').length;
+    const noshow=list.filter(b=>b.status==='No Show').length;
+    const rate=total?Math.round(arrived/total*100):0;
+    return `<div class="channel-row"><div><b>${esc(channelName(ch))}</b><span>预约${total}｜到店${arrived}｜取消${cancel}｜No Show ${noshow}</span></div><strong>${rate}%</strong></div>`;
+  }).join('');
 }
 
 const typeLabel = {
@@ -361,6 +394,7 @@ async function renderStats(){
     const {data:logs,error}=await supabaseClient.from('consume_logs').select('amount').eq('consume_date',today);
     $('statSales').innerText=error?'读取失败':yen((logs||[]).reduce((s,x)=>s+Number(x.amount||0),0));
   }
+  if($('dashboardChannelStats')) $('dashboardChannelStats').innerHTML=bookingConversionSummaryHtml(todayBookings);
   updateStatusText();
   renderTodayBookings();
 }
@@ -369,7 +403,7 @@ function changeStatus(s){ const t=labels[lang]; const name=t[s==='open'?'open':s
 
 function countBy(arr,fn){ const out={}; arr.forEach(x=>{const k=fn(x)||'unknown'; out[k]=(out[k]||0)+1;}); return out; }
 function renderBars(targetId,data,labelFn){ const box=$(targetId); if(!box) return; const entries=Object.entries(data); const total=entries.reduce((s,e)=>s+e[1],0)||1; if(entries.length===0){ box.innerHTML='暂无数据'; return; } box.innerHTML=entries.map(([k,v])=>{const pct=Math.round(v/total*100); return `<div class="bar"><div class="bar-name"><span>${labelFn(k)}</span><span>${v}人</span></div><div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;}).join(''); }
-async function renderAnalysis(){ const data=await fetchMembers(); const total=data.length; const active=data.filter(m=>getActiveKey(m)==='active').length; const warning=data.filter(m=>getActiveKey(m)==='warning').length; const sleep=data.filter(m=>getActiveKey(m)==='sleep').length; const lost=data.filter(m=>getActiveKey(m)==='lost').length; const silver=data.filter(m=>getMemberLevel(m)==='银卡会员').length; const gold=data.filter(m=>getMemberLevel(m)==='金卡会员').length; const diamond=data.filter(m=>getMemberLevel(m)==='钻石会员').length; $('memberSummary').innerHTML=`<h3>会员总览</h3>会员总数：${total}<br>🟢 活跃会员：${active}<br>🟡 提醒会员：${warning}<br>🟠 沉睡会员：${sleep}<br>🔴 流失会员：${lost}<br><br>银卡会员：${silver}<br>金卡会员：${gold}<br>钻石会员：${diamond}<br><br><h4>30天以上未到店提醒</h4>${data.filter(m=>['sleep','lost'].includes(getActiveKey(m))).map(m=>'• '+m.name+'｜最后到店：'+(m.last_visit||'未记录')).join('<br>')||'暂无'}`; renderBars('typeAnalysis',countBy(data,m=>memberValue(m,'customer_type','customerType')),k=>label('customerType',k)); renderBars('sceneAnalysis',countBy(data,m=>memberValue(m,'scene','visitScene')),k=>label('visitScene',k)); renderBars('foodAnalysis',countBy(data,m=>memberValue(m,'food','foodPreference')),k=>label('foodPreference',k)); renderBars('tasteAnalysis',countBy(data,m=>memberValue(m,'taste','tastePreference')),k=>label('tastePreference',k)); renderBars('activeAnalysis',countBy(data,m=>getActiveKey(m)),k=>labels[lang][k]); renderBars('storeAnalysis',countBy(data,m=>memberValue(m,'store')||stores[m.store_code]||'未登记'),k=>k); }
+async function renderAnalysis(){ const data=await fetchMembers(); const bookings=await fetchBookings(); const total=data.length; const active=data.filter(m=>getActiveKey(m)==='active').length; const warning=data.filter(m=>getActiveKey(m)==='warning').length; const sleep=data.filter(m=>getActiveKey(m)==='sleep').length; const lost=data.filter(m=>getActiveKey(m)==='lost').length; const silver=data.filter(m=>getMemberLevel(m)==='银卡会员').length; const gold=data.filter(m=>getMemberLevel(m)==='金卡会员').length; const diamond=data.filter(m=>getMemberLevel(m)==='钻石会员').length; const channelSummary=bookingSourceSummaryHtml(bookings); const conversion=bookingConversionSummaryHtml(bookings); $('memberSummary').innerHTML=`<h3>会员总览</h3>会员总数：${total}<br>🟢 活跃会员：${active}<br>🟡 提醒会员：${warning}<br>🟠 沉睡会员：${sleep}<br>🔴 流失会员：${lost}<br><br>银卡会员：${silver}<br>金卡会员：${gold}<br>钻石会员：${diamond}<br><br><h4>预约来源结构</h4>${channelSummary}<h4>渠道成交情况</h4>${conversion}<h4>30天以上未到店提醒</h4>${data.filter(m=>['sleep','lost'].includes(getActiveKey(m))).map(m=>'• '+m.name+'｜最后到店：'+(m.last_visit||'未记录')).join('<br>')||'暂无'}`; renderBars('typeAnalysis',countBy(data,m=>memberValue(m,'customer_type','customerType')),k=>label('customerType',k)); renderBars('sceneAnalysis',countBy(data,m=>memberValue(m,'scene','visitScene')),k=>label('visitScene',k)); renderBars('foodAnalysis',countBy(data,m=>memberValue(m,'food','foodPreference')),k=>label('foodPreference',k)); renderBars('tasteAnalysis',countBy(data,m=>memberValue(m,'taste','tastePreference')),k=>label('tastePreference',k)); renderBars('activeAnalysis',countBy(data,m=>getActiveKey(m)),k=>labels[lang][k]); renderBars('storeAnalysis',countBy(data,m=>memberValue(m,'store')||stores[m.store_code]||'未登记'),k=>k); }
 
 
 async function addBooking(){
@@ -455,11 +489,13 @@ async function editBooking(id){
   const date=prompt('预约日期 YYYY-MM-DD',b.booking_date||todayStr()); if(date===null) return;
   const time=prompt('预约时间 HH:MM',b.booking_time||'18:00'); if(time===null) return;
   const people=Number(prompt('人数',b.people||'2')); if(!people){ alert('人数不正确'); return; }
-  const channel=prompt('预约来源：line/google/phone/instagram/xiaohongshu/tiktok/walkin/koc/hotel/friend/other',meta.channel||'phone')||meta.channel||'phone';
+  const channel=prompt('预约来源：line/google/phone/instagram/xiaohongshu/tiktok/walkin/koc/hotel/friend/website/wechat/tabelog/gurunavi/hotpepper/other',meta.channel||'phone')||meta.channel||'phone';
   const purpose=prompt('预约目的：normal/birthday/family/company/business/friends/couple/tourist/other',meta.purpose||'normal')||meta.purpose||'normal';
+  const childChair=prompt('儿童椅：yes/no',meta.childChair||'no')||meta.childChair||'no';
+  const seatRequest=prompt('座位要求：none/window/private/quiet/near_exit/other',meta.seatRequest||'none')||meta.seatRequest||'none';
   const table_no=prompt('桌号/包间',b.table_no||'')||'';
   const raw=prompt('备注',meta.raw||'')||'';
-  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
+  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,table_no,note:buildBookingNote(raw,{...meta,channel,purpose,childChair,seatRequest})}).eq('id',id);
   if(error){ alert('修改失败：'+error.message); return; }
   alert('预约已修改'); await renderBookings(); await renderStats();
 }
@@ -468,6 +504,7 @@ async function changeBookingStatus(id,status){
   const {error}=await supabaseClient.from('bookings').update({status}).eq('id',id);
   if(error){ alert(error.message); return; }
   if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){ const member=bookingMemberByPhone(b.phone); if(member) await recordVisit(member.id); }
+  await fetchBookings();
   renderBookings(); renderStats();
 }
 async function deleteBooking(id){
