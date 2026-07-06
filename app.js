@@ -1,4 +1,4 @@
-/* V6.6 LINE预约提醒准备版 */
+/* V6.5 首页预约看板 + 新预约红点提醒 + 预约来源兼容优化 */
 const SUPABASE_URL = 'https://unrkdxrqmhgxlmgzxyqs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_optM3gsSn5pV-2aQo23Rpg_ndL99Rr_';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -384,7 +384,6 @@ async function addBooking(){
     booking_date:$('bookingDate').value,
     booking_time:$('bookingTime').value,
     people:Number($('bookingPeople').value||0),
-    store_code:$('bookingStore') ? $('bookingStore').value : '1f',
     table_no:$('bookingRoom').value.trim(),
     note:buildBookingNote(rawNote,{channel,purpose,childChair,seatRequest}),
     status:'已预约'
@@ -393,7 +392,6 @@ async function addBooking(){
   const {error}=await supabaseClient.from('bookings').insert([row]);
   if(error){ alert('预约保存失败：'+error.message); return; }
   ['bookingName','bookingPhone','bookingDate','bookingTime','bookingPeople','bookingRoom','bookingNote'].forEach(id=>$(id).value='');
-  if($('bookingStore')) $('bookingStore').value='1f';
   if($('bookingChannel')) $('bookingChannel').value='line';
   if($('bookingPurpose')) $('bookingPurpose').value='normal';
   if($('bookingChildChair')) $('bookingChildChair').value='no';
@@ -447,7 +445,7 @@ function bookingCard(b){
   const meta=getBookingMeta(b.note);
   const member=bookingMemberByPhone(b.phone);
   const memberLine=member?`<br><span class="badge">老会员</span> ${getMemberLevel(member)}｜累计：${yen(member.total_spent)}｜到店：${Number(member.visit_count||0)}次｜最后到店：${member.last_visit||'未记录'}`:'<br><span class="badge badge-gray">新客户/未入会</span>';
-  return `<div class="member booking-item"><strong>${esc(b.name||'')}</strong><br>${esc(b.people||'')}位｜${esc(b.booking_date||'')} ${esc(b.booking_time||'')}<br>电话：${currentUser&&currentUser.role==='admin'?esc(b.phone):maskPhone(b.phone)}<br>门店：${esc(stores[b.store_code]||b.store_code||'未登记')}｜桌号：${esc(b.table_no||'未登记')}<br>来源：<b>${esc(channelName(meta.channel))}</b>｜首次来源：${esc(channelName(meta.firstSource||meta.channel))}<br>LINE提醒：${lineReminderStatus(b).label}<br>目的：${esc(purposeName(meta.purpose))}｜儿童椅：${esc(childChairLabels[meta.childChair]||meta.childChair)}｜座位：${esc(seatLabels[meta.seatRequest]||meta.seatRequest)}<br>备注：${esc(meta.raw||'无')}${memberLine}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="待确认" ${b.status==='待确认'?'selected':''}>待确认</option><option value="已确认" ${b.status==='已确认'?'selected':''}>已确认</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已完成" ${b.status==='已完成'?'selected':''}>已完成</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option><option value="No Show" ${b.status==='No Show'?'selected':''}>No Show</option></select><div class="action-row"><button class="green" onclick="changeBookingStatus(${b.id},'已到店')">已到店</button><button class="blue" onclick="editBooking(${b.id})">修改预约</button><button class="orange" onclick="changeBookingStatus(${b.id},'No Show')">No Show</button><button class="red" onclick="deleteBooking(${b.id})">删除预约</button></div></div>`;
+  return `<div class="member booking-item"><strong>${esc(b.name||'')}</strong><br>${esc(b.people||'')}位｜${esc(b.booking_date||'')} ${esc(b.booking_time||'')}<br>电话：${currentUser&&currentUser.role==='admin'?esc(b.phone):maskPhone(b.phone)}<br>门店：${esc(stores[b.store_code]||b.store_code||'未登记')}｜桌号：${esc(b.table_no||'未登记')}<br>来源：<b>${esc(channelName(meta.channel))}</b>｜首次来源：${esc(channelName(meta.firstSource||meta.channel))}<br>目的：${esc(purposeName(meta.purpose))}｜儿童椅：${esc(childChairLabels[meta.childChair]||meta.childChair)}｜座位：${esc(seatLabels[meta.seatRequest]||meta.seatRequest)}<br>备注：${esc(meta.raw||'无')}${memberLine}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="待确认" ${b.status==='待确认'?'selected':''}>待确认</option><option value="已确认" ${b.status==='已确认'?'selected':''}>已确认</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已完成" ${b.status==='已完成'?'selected':''}>已完成</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option><option value="No Show" ${b.status==='No Show'?'selected':''}>No Show</option></select><div class="action-row"><button class="green" onclick="changeBookingStatus(${b.id},'已到店')">已到店</button><button class="blue" onclick="editBooking(${b.id})">修改预约</button><button class="orange" onclick="changeBookingStatus(${b.id},'No Show')">No Show</button><button class="red" onclick="deleteBooking(${b.id})">删除预约</button></div></div>`;
 }
 async function editBooking(id){
   const b=cacheBookings.find(x=>x.id===id); if(!b){ alert('找不到预约'); return; }
@@ -457,12 +455,11 @@ async function editBooking(id){
   const date=prompt('预约日期 YYYY-MM-DD',b.booking_date||todayStr()); if(date===null) return;
   const time=prompt('预约时间 HH:MM',b.booking_time||'18:00'); if(time===null) return;
   const people=Number(prompt('人数',b.people||'2')); if(!people){ alert('人数不正确'); return; }
-  const store_code=prompt('门店：1f=长堀桥1楼 / 2f=长堀桥2楼 / kyoto=京都店 / parco=PARCO店', b.store_code||'1f') || b.store_code || '1f';
   const channel=prompt('预约来源：line/google/phone/instagram/xiaohongshu/tiktok/walkin/koc/hotel/friend/other',meta.channel||'phone')||meta.channel||'phone';
   const purpose=prompt('预约目的：normal/birthday/family/company/business/friends/couple/tourist/other',meta.purpose||'normal')||meta.purpose||'normal';
   const table_no=prompt('桌号/包间',b.table_no||'')||'';
   const raw=prompt('备注',meta.raw||'')||'';
-  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,store_code,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
+  const {error}=await supabaseClient.from('bookings').update({name,phone,booking_date:date,booking_time:time,people,table_no,note:buildBookingNote(raw,{...meta,channel,purpose})}).eq('id',id);
   if(error){ alert('修改失败：'+error.message); return; }
   alert('预约已修改'); await renderBookings(); await renderStats();
 }
@@ -471,9 +468,7 @@ async function changeBookingStatus(id,status){
   const {error}=await supabaseClient.from('bookings').update({status}).eq('id',id);
   if(error){ alert(error.message); return; }
   if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){ const member=bookingMemberByPhone(b.phone); if(member) await recordVisit(member.id); }
-  await fetchBookings();
-  await renderBookings();
-  await renderStats();
+  renderBookings(); renderStats();
 }
 async function deleteBooking(id){
   if(!confirm('确定删除这条预约吗？')) return;
