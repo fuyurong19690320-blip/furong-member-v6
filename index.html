@@ -3,39 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>大阪芙蓉苑会员系统 V6</title>
+<title>芙蓉苑餐饮管理系统 V7.0</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="loginPage" class="login-wrap">
   <div class="login-card">
     <h1>大阪芙蓉苑</h1>
-    <p>会员系统 V6.7 / 会員システム</p>
-    <label>账号</label><input id="loginUser" placeholder="admin / manager / staff">
+    <p>餐饮管理系统 V7.0 / 管理システム</p>
+    <label>账号</label><input id="loginUser" placeholder="admin / manager / front / staff">
     <label>密码</label><input id="loginPass" type="password" placeholder="1234">
     <button onclick="login()">登录</button>
-    <div class="hint">测试账号：<br>管理员：admin / 1234<br>店长：manager / 1234<br>店员：staff / 1234</div>
+    <div class="hint">测试账号：<br>管理员：admin / 1234<br>店长：manager / 1234<br>前台：front / 1234<br>店员：staff / 1234</div>
   </div>
 </div>
 
 <div id="app" style="display:none;">
   <div class="topbar">
-    <div><div class="logo">大阪芙蓉苑 会员系统 V6.7</div><div id="roleText" class="role-text"></div></div>
+    <div><div class="logo">芙蓉苑餐饮管理系统 V7.0</div><div id="roleText" class="role-text"></div></div>
     <div class="top-actions"><button onclick="setLang('zh')" class="small-btn">中文</button><button onclick="setLang('ja')" class="small-btn">日本語</button><button onclick="logout()" class="logout-btn" id="logoutBtn">退出</button></div>
   </div>
   <div class="layout">
     <div class="sidebar">
-      <button onclick="showPage('dashboard')" id="navDashboard">首页</button>
+      <div class="menu-group-title">首页</div>
+      <button onclick="showPage('dashboard')" id="navDashboard">首页仪表盘</button>
+      <div class="menu-group-title">客户管理</div>
       <button onclick="showPage('search')" id="navSearch">会员查询</button>
       <button onclick="showPage('register')" id="navRegister">新增会员</button>
-      <button onclick="showPage('birthday')" id="navBirthday">生日会员</button>
-      <button onclick="showPage('status')" id="navStatus">营业状态</button>
       <button onclick="showPage('members')" id="navMembers">会员列表</button>
+      <button onclick="showPage('birthday')" id="navBirthday">生日会员</button>
+      <div class="menu-group-title">预约管理</div>
       <button onclick="showPage('booking')" id="navBooking">预约管理</button>
-      <button onclick="showPage('lineBooking')" id="navLineBooking">LINE预约入口</button>
+      <button onclick="showPage('status')" id="navStatus">营业状态</button>
+      <div class="menu-group-title">营销分析</div>
       <button onclick="showPage('analysis')" id="navAnalysis">客户分析</button>
       <button onclick="showPage('push')" id="navPush">LINE推送</button>
-      <button onclick="showPage('settings')" id="navSettings">系统设置</button>
+      <div class="menu-group-title admin-only">系统管理</div>
+      <button onclick="showPage('settings')" id="navSettings" class="admin-only">系统设置</button>
     </div>
     <div class="content">
       <div id="dashboard" class="page active">
@@ -68,8 +72,6 @@
 <select id="bookingChildChair"><option value="no">不需要儿童椅</option><option value="yes">需要儿童椅</option></select>
 <select id="bookingSeatRequest"><option value="none">无座位要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="near_exit">靠近出口</option><option value="other">其他</option></select>
 <input id="bookingNote" placeholder="备注：生日、忌口、儿童椅等"></div><button onclick="addBooking()" class="red">保存预约</button><h3>预约列表</h3><div id="bookingList">暂无预约记录</div></div></div>
-
-      <div id="lineBooking" class="page"><div class="card"><h2>LINE预约入口</h2><p class="sub">客人扫码后进入对应门店预约页面。二维码图片目前是本地预览，刷新后会消失；正式版可再接 Supabase Storage。</p><div id="lineLinks"></div><button onclick="saveBookingLinks()" class="red">保存预约链接</button></div></div>
 
       <div id="analysis" class="page"><div class="card"><h2 id="titleAnalysis">客户分析</h2><div id="memberSummary" class="member"></div><div class="analysis-grid"><div class="analysis-box"><h3 id="anaType">客户类型</h3><div id="typeAnalysis"></div></div><div class="analysis-box"><h3 id="anaScene">来店场景</h3><div id="sceneAnalysis"></div></div><div class="analysis-box"><h3 id="anaFood">菜品偏好</h3><div id="foodAnalysis"></div></div><div class="analysis-box"><h3 id="anaTaste">口味属性</h3><div id="tasteAnalysis"></div></div><div class="analysis-box"><h3 id="anaActive">活跃度</h3><div id="activeAnalysis"></div></div><div class="analysis-box"><h3 id="anaStore">门店分布</h3><div id="storeAnalysis"></div></div></div></div></div>
       <div id="push" class="page"><div class="card"><h2 id="titlePush">LINE推送</h2><select id="pushTarget"><option>全部会员</option><option>日本客人</option><option>中国客人</option><option>本月生日会员</option><option>30天未到店会员</option><option>90天沉睡会员</option><option>家庭聚餐客人</option><option>火锅偏好客人</option><option>不吃辣客人</option></select><input id="pushTitle" placeholder="推送标题"><textarea id="pushContent" rows="5" placeholder="推送内容"></textarea><button onclick="sendPush()" class="red wide" id="pushBtn">模拟发送</button><div id="pushResult"></div></div></div>
