@@ -12,9 +12,10 @@ let lastBookingId = null;
 let bookingAlertStarted = false;
 
 const users = {
-  admin: { password: '1234', role: 'admin', labelZh: '管理员', labelJa: '管理者' },
-  manager: { password: '1234', role: 'manager', labelZh: '店长', labelJa: '店長' },
-  staff: { password: '1234', role: 'staff', labelZh: '店员', labelJa: 'スタッフ' }
+  admin: { password: '1234', role: 'admin', labelZh: '超级管理员', labelJa: '管理者', storeScope:'all' },
+  manager: { password: '1234', role: 'manager', labelZh: '店长', labelJa: '店長', storeScope:'all' },
+  front: { password: '1234', role: 'front', labelZh: '前台', labelJa: 'フロント', storeScope:'all' },
+  staff: { password: '1234', role: 'staff', labelZh: '服务员', labelJa: 'スタッフ', storeScope:'all' }
 };
 
 const stores = {
@@ -117,7 +118,7 @@ const typeLabel = {
 };
 
 const labels = {
-  zh: {dashboard:'首页', search:'会员查询', register:'新增会员', birthday:'生日会员', status:'营业状态', members:'会员列表', analysis:'客户分析', push:'LINE推送', settings:'系统设置', logout:'退出', total:'会员总数', birthMonth:'本月生日', visitMonth:'本月到店', currentStatus:'当前状态', todayWork:'今日操作', searchSub:'输入电话后4位，店员端只显示隐藏后的电话。', name:'姓名', phone:'电话号码', birth:'生日（月日）', store:'常去门店', profile:'客户画像', customerType:'客户类型', visitScene:'来店场景', foodPreference:'菜品偏好', tastePreference:'口味属性', today:'今日生日', month:'本月生日', all:'全部生日', open:'营业中', busy:'忙碌中', stop:'停止接待', closed:'已打烊', statusSub:'店员可切换现场营业状态，防止误操作会二次确认。', save:'保存会员', searchBtn:'查询', pushBtn:'模拟发送', active:'活跃会员', warning:'提醒会员', sleep:'沉睡会员', lost:'流失会员', anaType:'客户类型', anaScene:'来店场景', anaFood:'菜品偏好', anaTaste:'口味属性', anaActive:'活跃度', anaStore:'门店分布'},
+  zh: {dashboard:'首页仪表盘', search:'会员查询', register:'新增会员', birthday:'生日会员', status:'营业状态', members:'会员列表', analysis:'客户分析', push:'LINE推送', settings:'系统设置', logout:'退出', total:'会员总数', birthMonth:'本月生日', visitMonth:'本月到店', currentStatus:'当前状态', todayWork:'今日操作', searchSub:'输入电话后4位，店员端只显示隐藏后的电话。', name:'姓名', phone:'电话号码', birth:'生日（月日）', store:'常去门店', profile:'客户画像', customerType:'客户类型', visitScene:'来店场景', foodPreference:'菜品偏好', tastePreference:'口味属性', today:'今日生日', month:'本月生日', all:'全部生日', open:'营业中', busy:'忙碌中', stop:'停止接待', closed:'已打烊', statusSub:'店员可切换现场营业状态，防止误操作会二次确认。', save:'保存会员', searchBtn:'查询', pushBtn:'模拟发送', active:'活跃会员', warning:'提醒会员', sleep:'沉睡会员', lost:'流失会员', anaType:'客户类型', anaScene:'来店场景', anaFood:'菜品偏好', anaTaste:'口味属性', anaActive:'活跃度', anaStore:'门店分布'},
   ja: {dashboard:'ホーム', search:'会員検索', register:'会員登録', birthday:'誕生日会員', status:'営業状態', members:'会員一覧', analysis:'顧客分析', push:'LINE配信', settings:'システム設定', logout:'ログアウト', total:'会員総数', birthMonth:'今月の誕生日', visitMonth:'今月の来店', currentStatus:'現在の状態', todayWork:'本日の操作', searchSub:'電話番号下4桁を入力。スタッフ画面では番号を非表示にします。', name:'お名前', phone:'電話番号', birth:'誕生日（月日）', store:'よく行く店舗', profile:'顧客プロフィール', customerType:'顧客タイプ', visitScene:'来店シーン', foodPreference:'料理ジャンル', tastePreference:'味の好み', today:'今日の誕生日', month:'今月の誕生日', all:'すべて', open:'営業中', busy:'混雑中', stop:'受付停止', closed:'閉店', statusSub:'スタッフが店舗の営業状態を切り替えできます。誤操作防止の確認があります。', save:'保存', searchBtn:'検索', pushBtn:'送信テスト', active:'アクティブ', warning:'要フォロー', sleep:'休眠', lost:'離脱', anaType:'顧客タイプ', anaScene:'来店シーン', anaFood:'料理ジャンル', anaTaste:'味の好み', anaActive:'利用頻度', anaStore:'店舗分布'}
 };
 
@@ -165,16 +166,40 @@ function login(){
   const u=$('loginUser').value.trim(); const p=$('loginPass').value.trim();
   if(!users[u] || users[u].password!==p){ alert('账号或密码错误'); return; }
   currentUser={username:u,...users[u]}; $('loginPage').style.display='none'; $('app').style.display='block';
-  applyPermission(); setLang(lang); showPage(currentUser.role==='staff'?'search':'dashboard'); startBookingAlert();
+  applyPermission(); setLang(lang); showPage(['staff','front'].includes(currentUser.role)?'booking':'dashboard'); startBookingAlert();
 }
 function logout(){ currentUser=null; $('app').style.display='none'; $('loginPage').style.display='flex'; }
+function hasPermission(action){
+  const role = currentUser ? currentUser.role : '';
+  const rules = {
+    admin: ['view_all','edit_all','delete_all','settings','push','analysis','members','status','booking','member_query','register','birthday','consume_edit','consume_delete'],
+    manager: ['view_all','edit_booking','cancel_booking','analysis','members','status','booking','member_query','register','birthday','consume_edit'],
+    front: ['booking','member_query','register','birthday','edit_booking','cancel_booking','record_consume','record_visit'],
+    staff: ['booking','member_query']
+  };
+  return (rules[role] || []).includes(action);
+}
+
+function setNavVisible(id, visible){ const el=$(id); if(el) el.classList.toggle('hidden', !visible); }
 function applyPermission(){
-  const role=currentUser.role; $('roleText').innerText='当前账号：'+currentUser.username+' / '+currentUser.labelZh;
-  ['navDashboard','navSearch','navRegister','navBirthday','navStatus','navMembers','navBooking','navLineBooking','navAnalysis','navPush','navSettings'].forEach(id=>$(id)&&$(id).classList.remove('hidden'));
-  document.querySelectorAll('.manager-only').forEach(el=>el.classList.remove('hidden'));
-  if(role==='staff') ['navDashboard','navMembers','navAnalysis','navPush','navSettings'].forEach(id=>$(id)&&$(id).classList.add('hidden'));
-  if(role==='manager') $('navSettings').classList.add('hidden');
-  buildLineLinks(); renderAll();
+  const role=currentUser.role;
+  $('roleText').innerText='当前账号：'+currentUser.username+' / '+currentUser.labelZh;
+  ['navDashboard','navSearch','navRegister','navBirthday','navStatus','navMembers','navBooking','navAnalysis','navPush','navSettings'].forEach(id=>setNavVisible(id,true));
+  document.querySelectorAll('.admin-only,.manager-only').forEach(el=>el.classList.remove('hidden'));
+
+  if(role==='admin'){
+    // 全部显示
+  }else if(role==='manager'){
+    ['navPush','navSettings'].forEach(id=>setNavVisible(id,false));
+    document.querySelectorAll('.admin-only').forEach(el=>el.classList.add('hidden'));
+  }else if(role==='front'){
+    ['navDashboard','navStatus','navMembers','navAnalysis','navPush','navSettings'].forEach(id=>setNavVisible(id,false));
+    document.querySelectorAll('.admin-only,.manager-only').forEach(el=>el.classList.add('hidden'));
+  }else if(role==='staff'){
+    ['navDashboard','navRegister','navBirthday','navStatus','navMembers','navAnalysis','navPush','navSettings'].forEach(id=>setNavVisible(id,false));
+    document.querySelectorAll('.admin-only,.manager-only').forEach(el=>el.classList.add('hidden'));
+  }
+  renderAll();
 }
 function setLang(l){
   lang=l; const t=labels[l]; const ids={navDashboard:'dashboard',navSearch:'search',navRegister:'register',navBirthday:'birthday',navStatus:'status',navMembers:'members',navAnalysis:'analysis',navPush:'push',navSettings:'settings',titleSearch:'search',titleRegister:'register',titleBirthday:'birthday',titleStatus:'status',titleMembers:'members',titleAnalysis:'analysis',titlePush:'push',titleSettings:'settings',dashboardTitle:'todayWork',searchSub:'searchSub',statTotalLabel:'total',statBirthLabel:'birthMonth',statVisitLabel:'visitMonth',statStatusLabel:'currentStatus',labelName:'name',labelPhone:'phone',labelBirthday:'birth',labelStore:'store',sectionProfile:'profile',labelCustomerType:'customerType',labelVisitScene:'visitScene',labelFoodPreference:'foodPreference',labelTastePreference:'tastePreference',birthToday:'today',birthMonth:'month',birthAll:'all',stOpen:'open',stBusy:'busy',stStop:'stop',stClosed:'closed',statusSub:'statusSub',saveBtn:'save',searchBtn:'searchBtn',pushBtn:'pushBtn',quickSearch:'search',quickRegister:'register',quickAnalysis:'analysis',anaType:'anaType',anaScene:'anaScene',anaFood:'anaFood',anaTaste:'anaTaste',anaActive:'anaActive',anaStore:'anaStore'};
@@ -183,10 +208,17 @@ function setLang(l){
 }
 function showPage(id){
   if(!currentUser) return;
-  if(currentUser.role==='staff' && ['dashboard','members','analysis','push','settings'].includes(id)){ alert('店员账号无权查看此页面'); return; }
-  if(currentUser.role==='manager' && id==='settings'){ alert('店长账号无权查看系统设置'); return; }
+  const role=currentUser.role;
+  const allowed={
+    admin:['dashboard','search','register','birthday','status','members','booking','analysis','push','settings'],
+    manager:['dashboard','search','register','birthday','status','members','booking','analysis'],
+    front:['search','register','birthday','booking'],
+    staff:['search','booking']
+  };
+  if(!(allowed[role]||[]).includes(id)){ alert('当前账号无权查看此页面'); return; }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  $(id).classList.add('active');
+  const page=$(id); if(!page){ alert('页面不存在'); return; }
+  page.classList.add('active');
   if(id==='booking' && $('navBooking')){ $('navBooking').innerText='预约管理'; $('navBooking').style.background=''; }
   renderAll();
 }
@@ -212,7 +244,7 @@ function memberCard(m,withActions=false){
   const total=Number(memberValue(m,'total_spent')||0);
   const count=Number(memberValue(m,'consume_count')||0);
   const avg=count?Math.round(total/count):0;
-  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row"><button class="green" onclick="recordVisit(${m.id})">今日到店</button><button class="orange" onclick="recordConsume(${m.id})">消费记录</button><button class="blue" onclick="editMember(${m.id})">编辑会员</button><button class="black" onclick="showMemberStats(${m.id})">客户档案</button><button class="red" onclick="deleteMember(${m.id})">删除会员</button></div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
+  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row">${hasPermission('record_visit')||hasPermission('edit_all')?`<button class="green" onclick="recordVisit(${m.id})">今日到店</button>`:''}${hasPermission('record_consume')||hasPermission('edit_all')?`<button class="orange" onclick="recordConsume(${m.id})">消费记录</button>`:''}${hasPermission('edit_all')||hasPermission('consume_edit')?`<button class="blue" onclick="editMember(${m.id})">编辑会员</button>`:''}<button class="black" onclick="showMemberStats(${m.id})">客户档案</button>${hasPermission('delete_all')?`<button class="red" onclick="deleteMember(${m.id})">删除会员</button>`:''}</div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
 }
 async function showMemberStats(id){
   const m=cacheMembers.find(x=>x.id===id) || (await supabaseClient.from('members').select('*').eq('id',id).single()).data;
@@ -260,10 +292,7 @@ async function showMemberStats(id){
         <strong>${yen(x.amount)}</strong>
       </div>
       <div class="history-meta">📅 ${esc(compactDate(x.consume_date||x.created_at)||'未记录日期')}　📝 ${esc(x.memo||'无备注')}</div>
-      <div class="mini-actions">
-        <button class="mini-edit" onclick="editConsumeLog(${x.id},${id})">编辑</button>
-        <button class="mini-delete" onclick="deleteConsumeLog(${x.id},${id})">删除</button>
-      </div>
+      ${hasPermission('consume_edit')||hasPermission('edit_all')?`<div class="mini-actions"><button class="mini-edit" onclick="editConsumeLog(${x.id},${id})">编辑</button>${hasPermission('consume_delete')||hasPermission('delete_all')?`<button class="mini-delete" onclick="deleteConsumeLog(${x.id},${id})">删除</button>`:''}</div>`:''}
     </div>`;
   }).join(''):'<div class="empty-line">暂无消费明细</div>';
 
@@ -479,7 +508,7 @@ function bookingCard(b){
   const meta=getBookingMeta(b.note);
   const member=bookingMemberByPhone(b.phone);
   const memberLine=member?`<br><span class="badge">老会员</span> ${getMemberLevel(member)}｜累计：${yen(member.total_spent)}｜到店：${Number(member.visit_count||0)}次｜最后到店：${member.last_visit||'未记录'}`:'<br><span class="badge badge-gray">新客户/未入会</span>';
-  return `<div class="member booking-item"><strong>${esc(b.name||'')}</strong><br>${esc(b.people||'')}位｜${esc(b.booking_date||'')} ${esc(b.booking_time||'')}<br>电话：${currentUser&&currentUser.role==='admin'?esc(b.phone):maskPhone(b.phone)}<br>门店：${esc(stores[b.store_code]||b.store_code||'未登记')}｜桌号：${esc(b.table_no||'未登记')}<br>来源：<b>${esc(channelName(meta.channel))}</b>｜首次来源：${esc(channelName(meta.firstSource||meta.channel))}<br>目的：${esc(purposeName(meta.purpose))}｜儿童椅：${esc(childChairLabels[meta.childChair]||meta.childChair)}｜座位：${esc(seatLabels[meta.seatRequest]||meta.seatRequest)}<br>备注：${esc(meta.raw||'无')}${memberLine}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="待确认" ${b.status==='待确认'?'selected':''}>待确认</option><option value="已确认" ${b.status==='已确认'?'selected':''}>已确认</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已完成" ${b.status==='已完成'?'selected':''}>已完成</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option><option value="No Show" ${b.status==='No Show'?'selected':''}>No Show</option></select><div class="action-row"><button class="green" onclick="changeBookingStatus(${b.id},'已到店')">已到店</button><button class="blue" onclick="editBooking(${b.id})">修改预约</button><button class="orange" onclick="changeBookingStatus(${b.id},'No Show')">No Show</button><button class="red" onclick="deleteBooking(${b.id})">删除预约</button></div></div>`;
+  return `<div class="member booking-item"><strong>${esc(b.name||'')}</strong><br>${esc(b.people||'')}位｜${esc(b.booking_date||'')} ${esc(b.booking_time||'')}<br>电话：${currentUser&&currentUser.role==='admin'?esc(b.phone):maskPhone(b.phone)}<br>门店：${esc(stores[b.store_code]||b.store_code||'未登记')}｜桌号：${esc(b.table_no||'未登记')}<br>来源：<b>${esc(channelName(meta.channel))}</b>｜首次来源：${esc(channelName(meta.firstSource||meta.channel))}<br>目的：${esc(purposeName(meta.purpose))}｜儿童椅：${esc(childChairLabels[meta.childChair]||meta.childChair)}｜座位：${esc(seatLabels[meta.seatRequest]||meta.seatRequest)}<br>备注：${esc(meta.raw||'无')}${memberLine}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="待确认" ${b.status==='待确认'?'selected':''}>待确认</option><option value="已确认" ${b.status==='已确认'?'selected':''}>已确认</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已完成" ${b.status==='已完成'?'selected':''}>已完成</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option><option value="No Show" ${b.status==='No Show'?'selected':''}>No Show</option></select><div class="action-row"><button class="green" onclick="changeBookingStatus(${b.id},'已到店')">已到店</button>${hasPermission('edit_booking')||hasPermission('edit_all')?`<button class="blue" onclick="editBooking(${b.id})">修改预约</button><button class="orange" onclick="changeBookingStatus(${b.id},'No Show')">No Show</button>`:''}${hasPermission('delete_all')?`<button class="red" onclick="deleteBooking(${b.id})">删除预约</button>`:''}</div></div>`;
 }
 async function editBooking(id){
   const b=cacheBookings.find(x=>x.id===id); if(!b){ alert('找不到预约'); return; }
