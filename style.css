@@ -54,3 +54,10 @@ textarea{resize:vertical}button{cursor:pointer}
 .channel-row span{display:block;color:#666;font-size:13px;margin-top:4px;line-height:1.4}
 .channel-row strong{font-size:20px;color:#7b1e22;white-space:nowrap}
 .booking-item b{color:#7b1e22}
+
+
+/* V7.0 后台菜单与权限 */
+.menu-group-title{color:#9ca3af;font-size:12px;font-weight:900;letter-spacing:.08em;margin:14px 6px 8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.menu-group-title:first-child{margin-top:0;border-top:0}
+.sidebar .admin-only.hidden,.menu-group-title.hidden{display:none!important}
+.permission-note{font-size:13px;color:#666;background:#f9fafb;border-radius:12px;padding:10px;margin-top:10px;line-height:1.6}
