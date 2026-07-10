@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>芙蓉苑餐饮管理系统 V7.1</title>
+<title>芙蓉苑餐饮管理系统 V7.3</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="loginPage" class="login-wrap">
   <div class="login-card">
     <h1>大阪芙蓉苑</h1>
-    <p>餐饮管理系统 V7.1 / 管理システム</p>
+    <p>餐饮管理系统 V7.3 / 管理システム</p>
     <label>账号</label><input id="loginUser" placeholder="admin / manager_kyoto / front_kyoto / staff_kyoto">
     <label>密码</label><input id="loginPass" type="password" placeholder="1234">
     <button onclick="login()">登录</button>
@@ -20,11 +20,11 @@
 
 <div id="app" style="display:none;">
   <div class="topbar">
-    <div><div class="logo">芙蓉苑餐饮管理系统 V7.1</div><div id="roleText" class="role-text"></div></div>
+    <div><div class="logo">芙蓉苑餐饮管理系统 V7.3</div><div id="roleText" class="role-text"></div></div>
     <div class="top-actions"><button onclick="setLang('zh')" class="small-btn">中文</button><button onclick="setLang('ja')" class="small-btn">日本語</button><button onclick="logout()" class="logout-btn" id="logoutBtn">退出</button></div>
   </div>
   <div class="layout">
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="menu-group-title">首页</div>
       <button onclick="showPage('dashboard')" id="navDashboard">首页仪表盘</button>
       <div class="menu-group-title">客户管理</div>
@@ -43,7 +43,8 @@
     </div>
     <div class="content">
       <div id="dashboard" class="page active">
-        <div class="stat-grid">
+        <div id="roleDashboardPanel"></div>
+        <div class="stat-grid" id="adminStatGrid">
           <div class="stat-card"><div id="statTotalLabel">会员总数</div><b id="statTotal">0</b></div>
           <div class="stat-card"><div id="statBirthLabel">本月生日</div><b id="statBirth">0</b></div>
           <div class="stat-card"><div id="statVisitLabel">本月到店</div><b id="statVisit">0</b></div>
@@ -51,8 +52,8 @@
           <div class="stat-card"><div>今日消费</div><b id="statSales">0</b></div>
           <div class="stat-card"><div id="statStatusLabel">当前状态</div><b id="statStatus">营业中</b></div>
         </div>
-        <div class="card"><h2 id="dashboardTitle">今日操作</h2><div class="quick-grid"><button onclick="showPage('search')" class="quick" id="quickSearch">会员查询</button><button onclick="showPage('register')" class="quick" id="quickRegister">新增会员</button><button onclick="showPage('booking')" class="quick">预约管理</button><button onclick="showPage('analysis')" class="quick manager-only" id="quickAnalysis">客户分析</button></div></div>
-        <div class="card"><h2>今日预约</h2><div id="todayBookingList">读取中...</div></div><div class="card"><h2>今日渠道成交</h2><div id="dashboardChannelStats">读取中...</div></div>
+        <div class="card" id="adminQuickCard"><h2 id="dashboardTitle">今日操作</h2><div class="quick-grid"><button onclick="showPage('search')" class="quick" id="quickSearch">会员查询</button><button onclick="showPage('register')" class="quick" id="quickRegister">新增会员</button><button onclick="showPage('booking')" class="quick">预约管理</button><button onclick="showPage('analysis')" class="quick manager-only" id="quickAnalysis">客户分析</button></div></div>
+        <div class="card" id="adminTodayBookingCard"><h2>今日预约</h2><div id="todayBookingList">读取中...</div></div><div class="card" id="adminChannelCard"><h2>今日渠道成交</h2><div id="dashboardChannelStats">读取中...</div></div>
       </div>
 
       <div id="search" class="page"><div class="card staff-main"><h2 id="titleSearch">会员查询</h2><p class="sub" id="searchSub">输入电话后4位，店员端只显示隐藏后的电话。</p><input id="searchPhone" placeholder="输入电话后4位" inputmode="numeric" maxlength="4"><button onclick="searchMember()" class="red wide" id="searchBtn">查询</button><div id="searchResult"></div></div></div>
