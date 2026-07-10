@@ -1,4 +1,4 @@
-/* V7.1 多门店权限隔离 + PARCO门店 + 店长测试版 */
+/* V7.3 三层权限 + 独立首页 */
 const SUPABASE_URL = 'https://unrkdxrqmhgxlmgzxyqs.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_optM3gsSn5pV-2aQo23Rpg_ndL99Rr_';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -219,7 +219,7 @@ function login(){
   const u=$('loginUser').value.trim(); const p=$('loginPass').value.trim();
   if(!users[u] || users[u].password!==p){ alert('账号或密码错误'); return; }
   currentUser={username:u,...users[u]}; $('loginPage').style.display='none'; $('app').style.display='block';
-  applyPermission(); setLang(lang); showPage(['staff','front'].includes(currentUser.role)?'booking':'dashboard'); startBookingAlert();
+  applyPermission(); setLang(lang); showPage('dashboard'); startBookingAlert();
 }
 function logout(){ currentUser=null; $('app').style.display='none'; $('loginPage').style.display='flex'; }
 function hasPermission(action){
@@ -234,27 +234,124 @@ function hasPermission(action){
 }
 
 function setNavVisible(id, visible){ const el=$(id); if(el) el.classList.toggle('hidden', !visible); }
-function applyPermission(){
-  const role=currentUser.role;
-  $('roleText').innerText='当前账号：'+currentUser.username+' / '+currentUser.labelZh+' / '+scopeStoreName();
-  ['navDashboard','navSearch','navRegister','navBirthday','navStatus','navMembers','navBooking','navAnalysis','navPush','navSettings'].forEach(id=>setNavVisible(id,true));
-  document.querySelectorAll('.admin-only,.manager-only').forEach(el=>el.classList.remove('hidden'));
 
+function sidebarButton(page,label,id){ return `<button onclick="showPage('${page}')" id="${id}">${label}</button>`; }
+function sidebarGroup(label){ return `<div class="menu-group-title">${label}</div>`; }
+function buildSidebar(){
+  const box=$('sidebar'); if(!box||!currentUser) return;
+  const role=currentUser.role;
+  let html='';
   if(role==='admin'){
-    // 全部显示
+    html += sidebarGroup('老板总览');
+    html += sidebarButton('dashboard','老板驾驶舱','navDashboard');
+    html += sidebarGroup('客户管理');
+    html += sidebarButton('search','会员查询','navSearch');
+    html += sidebarButton('register','新增会员','navRegister');
+    html += sidebarButton('members','会员列表','navMembers');
+    html += sidebarButton('birthday','生日会员','navBirthday');
+    html += sidebarGroup('门店运营');
+    html += sidebarButton('booking','全部预约','navBooking');
+    html += sidebarButton('status','营业状态','navStatus');
+    html += sidebarGroup('经营分析');
+    html += sidebarButton('analysis','全店客户分析','navAnalysis');
+    html += sidebarButton('push','LINE推送','navPush');
+    html += sidebarGroup('系统管理');
+    html += sidebarButton('settings','系统设置','navSettings');
   }else if(role==='manager'){
-    ['navSettings'].forEach(id=>setNavVisible(id,false));
-    document.querySelectorAll('.admin-only').forEach(el=>el.classList.add('hidden'));
+    html += sidebarGroup(scopeStoreName());
+    html += sidebarButton('dashboard','店长工作台','navDashboard');
+    html += sidebarGroup('今日工作');
+    html += sidebarButton('booking','今日预约','navBooking');
+    html += sidebarButton('birthday','今日生日','navBirthday');
+    html += sidebarButton('search','会员查询','navSearch');
+    html += sidebarButton('register','新增会员','navRegister');
+    html += sidebarGroup('本店管理');
+    html += sidebarButton('members','本店会员','navMembers');
+    html += sidebarButton('status','营业状态','navStatus');
+    html += sidebarButton('analysis','本店数据','navAnalysis');
   }else if(role==='front'){
-    ['navDashboard','navStatus','navMembers','navAnalysis','navPush','navSettings'].forEach(id=>setNavVisible(id,false));
-    document.querySelectorAll('.admin-only,.manager-only').forEach(el=>el.classList.add('hidden'));
-  }else if(role==='staff'){
-    ['navDashboard','navRegister','navBirthday','navStatus','navMembers','navAnalysis','navPush','navSettings'].forEach(id=>setNavVisible(id,false));
-    document.querySelectorAll('.admin-only,.manager-only').forEach(el=>el.classList.add('hidden'));
+    html += sidebarGroup(scopeStoreName());
+    html += sidebarButton('dashboard','前台工作台','navDashboard');
+    html += sidebarButton('booking','今日预约','navBooking');
+    html += sidebarButton('search','会员查询','navSearch');
+    html += sidebarButton('register','新增会员','navRegister');
+    html += sidebarButton('birthday','今日生日','navBirthday');
+  }else{
+    html += sidebarGroup(scopeStoreName());
+    html += sidebarButton('dashboard','今日工作','navDashboard');
+    html += sidebarButton('booking','今日预约','navBooking');
+    html += sidebarButton('search','会员查询','navSearch');
   }
+  box.innerHTML=html;
+}
+function applyPermission(){
+  $('roleText').innerText='当前账号：'+currentUser.username+' / '+currentUser.labelZh+' / '+scopeStoreName();
+  buildSidebar();
   prepareStoreScopedInputs();
   renderAll();
 }
+
+function isVipMember(m){
+  const t=String(memberValue(m,'customer_type','customerType')||'').toLowerCase();
+  const level=getMemberLevel(m);
+  return t==='vip' || ['金卡会员','钻石会员'].includes(level) || String(m.remark||'').toUpperCase().includes('VIP');
+}
+function hasKeyword(m, words){ const text=String((m&&m.remark)||'').toLowerCase(); return words.some(w=>text.includes(w)); }
+function bookingMember(b){
+  const p=String(b.phone||'').replace(/\D/g,'');
+  return cacheMembers.find(m=>String(m.phone||'').replace(/\D/g,'')===p);
+}
+function roleListHtml(items, renderer){ return items.length?items.map(renderer).join(''):'<div class="role-empty">暂无</div>'; }
+async function renderRoleDashboard(){
+  const box=$('roleDashboardPanel'); if(!box||!currentUser) return;
+  const members=cacheMembers.length?cacheMembers:await fetchMembers();
+  const bookings=cacheBookings.length?cacheBookings:await fetchBookings();
+  const today=todayStr();
+  const todayBookings=bookings.filter(b=>String(b.booking_date||'')===today && b.status!=='已取消');
+  const todayBirth=members.filter(m=>{const d=parseMonthDay(m.birthday); const n=new Date(); return d&&d.month===n.getMonth()+1&&d.day===n.getDate();});
+  const vipBookings=todayBookings.filter(b=>{const m=bookingMember(b); return m&&isVipMember(m);});
+  const inactive30=members.filter(m=>{const d=daysSince(m.last_visit); return d>=30&&d<90;});
+  const complaintBookings=todayBookings.filter(b=>{const m=bookingMember(b); return (m&&hasKeyword(m,['投诉','客诉','complaint'])) || String(b.note||'').includes('投诉');});
+  const blacklist=members.filter(m=>hasKeyword(m,['黑名单','禁止接待','blacklist']));
+  const blacklistBookings=todayBookings.filter(b=>{const m=bookingMember(b); return m&&blacklist.some(x=>x.id===m.id);});
+  const special=todayBookings.filter(b=>{const meta=getBookingMeta(b.note); return meta.childChair==='yes'||meta.seatRequest!=='none'||meta.purpose==='birthday'||/忌口|过敏|素食|不吃辣/.test(String(b.note||''));});
+
+  const adminBlocks=['adminStatGrid','adminQuickCard','adminTodayBookingCard','adminChannelCard'];
+  adminBlocks.forEach(id=>{if($(id)) $(id).style.display=currentUser.role==='admin'?'':'none';});
+
+  if(currentUser.role==='admin'){
+    box.innerHTML=`<div class="role-home"><div class="role-home-head"><h2>老板驾驶舱</h2><p>查看全部门店的会员、预约、消费与渠道数据。</p></div></div>`;
+    return;
+  }
+  if(currentUser.role==='manager'){
+    box.innerHTML=`<div class="role-home">
+      <div class="role-home-head"><h2>${esc(scopeStoreName())} · 店长工作台</h2><p>只显示本店数据，优先处理今日重点客户和预约。</p></div>
+      <div class="role-alert-grid">
+        <div class="role-alert"><span>🎂 今日生日会员</span><b>${todayBirth.length}</b></div>
+        <div class="role-alert good-box"><span>⭐ 今日VIP预约</span><b>${vipBookings.length}</b></div>
+        <div class="role-alert warn-box"><span>❤️ 30天未到店</span><b>${inactive30.length}</b></div>
+        <div class="role-alert danger-box"><span>⚠️ 今日投诉客户预约</span><b>${complaintBookings.length}</b></div>
+        <div class="role-alert danger-box"><span>🚫 黑名单客户</span><b>${blacklist.length}</b></div>
+        <div class="role-alert"><span>📅 今日预约</span><b>${todayBookings.length}</b></div>
+      </div>
+      <div class="role-list"><h3>今日重点预约</h3>${roleListHtml(todayBookings.slice().sort((a,b)=>String(a.booking_time).localeCompare(String(b.booking_time))),b=>{const m=bookingMember(b);return `<div class="role-list-item"><b>${esc(b.booking_time||'')}　${esc(b.name||'')}</b>　${esc(b.people||'')}位<br>${m&&isVipMember(m)?'⭐ VIP　':''}${complaintBookings.some(x=>x.id===b.id)?'⚠️ 投诉客户　':''}${blacklistBookings.some(x=>x.id===b.id)?'🚫 黑名单　':''}${esc(b.note||'无备注')}</div>`;})}</div>
+      <div class="role-list"><h3>今日特殊要求</h3>${roleListHtml(special,b=>`<div class="role-list-item"><b>${esc(b.booking_time||'')} ${esc(b.name||'')}</b><br>${esc(b.note||'')}</div>`)}</div>
+    </div>`;
+    return;
+  }
+  const next=todayBookings.slice().sort((a,b)=>String(a.booking_time).localeCompare(String(b.booking_time)));
+  const title=currentUser.role==='front'?'前台工作台':'今日工作';
+  box.innerHTML=`<div class="role-home">
+    <div class="role-home-head"><h2>${esc(scopeStoreName())} · ${title}</h2><p>只显示今天接待所需的信息。</p></div>
+    <div class="role-alert-grid">
+      <div class="role-alert"><span>今日预约</span><b>${todayBookings.length}</b></div>
+      <div class="role-alert warn-box"><span>特殊要求</span><b>${special.length}</b></div>
+      <div class="role-alert good-box"><span>下一组预约</span><b style="font-size:22px">${next[0]?esc(next[0].booking_time||''):'暂无'}</b></div>
+    </div>
+    <div class="role-list"><h3>今日接待顺序</h3>${roleListHtml(next,b=>`<div class="role-list-item"><b>${esc(b.booking_time||'')}　${esc(b.name||'')}</b>　${esc(b.people||'')}位<br>${esc(b.note||'无备注')}</div>`)}</div>
+  </div>`;
+}
+
 function setLang(l){
   lang=l; const t=labels[l]; const ids={navDashboard:'dashboard',navSearch:'search',navRegister:'register',navBirthday:'birthday',navStatus:'status',navMembers:'members',navAnalysis:'analysis',navPush:'push',navSettings:'settings',titleSearch:'search',titleRegister:'register',titleBirthday:'birthday',titleStatus:'status',titleMembers:'members',titleAnalysis:'analysis',titlePush:'push',titleSettings:'settings',dashboardTitle:'todayWork',searchSub:'searchSub',statTotalLabel:'total',statBirthLabel:'birthMonth',statVisitLabel:'visitMonth',statStatusLabel:'currentStatus',labelName:'name',labelPhone:'phone',labelBirthday:'birth',labelStore:'store',sectionProfile:'profile',labelCustomerType:'customerType',labelVisitScene:'visitScene',labelFoodPreference:'foodPreference',labelTastePreference:'tastePreference',birthToday:'today',birthMonth:'month',birthAll:'all',stOpen:'open',stBusy:'busy',stStop:'stop',stClosed:'closed',statusSub:'statusSub',saveBtn:'save',searchBtn:'searchBtn',pushBtn:'pushBtn',quickSearch:'search',quickRegister:'register',quickAnalysis:'analysis',anaType:'anaType',anaScene:'anaScene',anaFood:'anaFood',anaTaste:'anaTaste',anaActive:'anaActive',anaStore:'anaStore'};
   for(const id in ids){ if($(id)) $(id).innerText=t[ids[id]]; }
@@ -266,8 +363,8 @@ function showPage(id){
   const allowed={
     admin:['dashboard','search','register','birthday','status','members','booking','analysis','push','settings'],
     manager:['dashboard','search','register','birthday','status','members','booking','analysis'],
-    front:['search','register','birthday','booking'],
-    staff:['search','booking']
+    front:['dashboard','search','register','birthday','booking'],
+    staff:['dashboard','search','booking']
   };
   if(!(allowed[role]||[]).includes(id)){ alert('当前账号无权查看此页面'); return; }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -631,7 +728,7 @@ function previewQRCode(input,boxId){ const file=input.files[0]; if(!file) return
 function sendPush(){ const target=$('pushTarget').value; const title=$('pushTitle').value||'未填写标题'; const content=$('pushContent').value||''; $('pushResult').innerHTML=`<div class="member"><strong>推送对象：${target}</strong><br>${title}<br>${content}<br><br>LINE推送模拟成功。正式版接入LINE Messaging API后会真正发送。</div>`; }
 async function exportMembers(){ if(!currentUser||currentUser.role!=='admin'){ alert('只有管理员可以导出'); return; } const data=await fetchMembers(); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='fuyoen_members_v6.json'; a.click(); URL.revokeObjectURL(url); }
 function clearLocalCache(){ if(confirm('确定清空本地缓存吗？不会删除云端数据。')){ localStorage.removeItem('fuyoen_store_status_v6'); alert('本地缓存已清空'); } }
-async function renderAll(){ if(!currentUser) return; await renderStats(); if($('memberList')) renderMembers(); if($('bookingList')) renderBookings(); if($('birthdayList')) renderBirthday(birthdayMode); if($('memberSummary')) renderAnalysis(); }
+async function renderAll(){ if(!currentUser) return; await renderStats(); await renderRoleDashboard(); if($('memberList')) renderMembers(); if($('bookingList')) renderBookings(); if($('birthdayList')) renderBirthday(birthdayMode); if($('memberSummary')) renderAnalysis(); }
 
 function playBookingSound(){ const audio=new Audio('https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg'); audio.play().catch(()=>{}); }
 async function checkNewBookingAlert(){ if(!supabaseClient || !currentUser) return; const {data,error}=await supabaseClient.from('bookings').select('id,name,booking_date,booking_time,people,store_code').order('id',{ascending:false}).limit(10); if(error||!data||!data.length) return; const scoped=filterBookingsByScope(data||[]); if(!scoped.length) return; const newest=scoped[0]; if(lastBookingId===null){ lastBookingId=newest.id; return; } if(newest.id!==lastBookingId){ lastBookingId=newest.id; playBookingSound();
