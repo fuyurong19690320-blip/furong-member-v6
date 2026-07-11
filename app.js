@@ -196,6 +196,43 @@ function daysSince(dateStr){ if(!dateStr) return 9999; const d=new Date(dateStr)
 function getActiveKey(m){ const days=daysSince(memberValue(m,'last_visit','lastVisit')); if(days>90) return 'lost'; if(days>30) return 'sleep'; if(days>15) return 'warning'; return 'active'; }
 function getMemberLevel(m){ const total=Number(memberValue(m,'total_spent','totalSpent')||0); if(total>=100000) return '钻石会员'; if(total>=50000) return '金卡会员'; if(total>=10000) return '银卡会员'; return memberValue(m,'level') || '普通会员'; }
 
+function chooseDate(title='请选择日期', currentValue=''){
+  return new Promise(resolve=>{
+    const old=document.getElementById('datePickerOverlay');
+    if(old) old.remove();
+    const overlay=document.createElement('div');
+    overlay.id='datePickerOverlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;';
+    overlay.innerHTML=`<div style="width:min(420px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <h3 style="margin:0 0 16px">${esc(title)}</h3>
+      <input id="datePickerInput" type="date" value="${esc(compactDate(currentValue))}" max="${todayStr()}" style="width:100%;box-sizing:border-box;padding:14px;border:1px solid #d1d5db;border-radius:12px;font-size:17px">
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+        <button id="datePickerClear" type="button" style="padding:10px 14px;border:0;border-radius:10px;background:#e5e7eb">清空生日</button>
+        <button id="datePickerCancel" type="button" style="padding:10px 14px;border:0;border-radius:10px;background:#e5e7eb">取消</button>
+        <button id="datePickerOk" type="button" style="padding:10px 14px;border:0;border-radius:10px;background:#7b1e22;color:#fff;font-weight:700">确定</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const close=value=>{ overlay.remove(); resolve(value); };
+    document.getElementById('datePickerOk').onclick=()=>close(document.getElementById('datePickerInput').value);
+    document.getElementById('datePickerClear').onclick=()=>close('');
+    document.getElementById('datePickerCancel').onclick=()=>close(null);
+    overlay.addEventListener('click',e=>{ if(e.target===overlay) close(null); });
+  });
+}
+
+async function updateMemberBirthday(id){
+  const m=cacheMembers.find(x=>x.id===id) || {};
+  const birthday=await chooseDate('补充或修改生日（可选）',m.birthday||'');
+  if(birthday===null) return;
+  const {error}=await supabaseClient.from('members').update({birthday:birthday||null}).eq('id',id);
+  if(error){ alert('生日保存失败：'+error.message); return; }
+  alert(birthday?'生日已保存':'生日已清空');
+  await fetchMembers();
+  if($('searchPhone')&&$('searchPhone').value) await searchMember();
+  renderAll();
+}
+
 async function fetchMembers(){
   if(!supabaseClient) return [];
   const {data,error}=await supabaseClient.from('members').select('*').order('id',{ascending:false});
@@ -414,7 +451,7 @@ function memberCard(m,withActions=false){
   const total=Number(memberValue(m,'total_spent')||0);
   const count=Number(memberValue(m,'consume_count')||0);
   const avg=count?Math.round(total/count):0;
-  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row">${hasPermission('record_visit')||hasPermission('edit_all')?`<button class="green" onclick="recordVisit(${m.id})">今日到店</button>`:''}${hasPermission('record_consume')||hasPermission('edit_all')?`<button class="orange" onclick="recordConsume(${m.id})">消费记录</button>`:''}${hasPermission('edit_all')||hasPermission('consume_edit')?`<button class="blue" onclick="editMember(${m.id})">编辑会员</button>`:''}<button class="black" onclick="showMemberStats(${m.id})">客户档案</button>${hasPermission('delete_all')?`<button class="red" onclick="deleteMember(${m.id})">删除会员</button>`:''}</div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
+  return `<div class="member"><strong>${m.name||''}</strong><br>电话：${phoneView}<br>生日：${m.birthday||'未登记'}<br>门店：${memberValue(m,'store')||'未登记'}<br>等级：${getMemberLevel(m)}｜积分：${memberValue(m,'points')||0}<br>到店：${memberValue(m,'visit_count')||0}次｜最后到店：${memberValue(m,'last_visit')||'未记录'}<br>消费：${count}次｜累计：${yen(total)}｜平均：${yen(avg)}<br>最后消费：${memberValue(m,'last_consume')||'未记录'}<br>${profileHtml(m)}${withActions?`<div class="action-row">${hasPermission('record_visit')||hasPermission('edit_all')?`<button class="green" onclick="recordVisit(${m.id})">今日到店</button>`:''}${hasPermission('record_consume')||hasPermission('edit_all')?`<button class="orange" onclick="recordConsume(${m.id})">消费记录</button>`:''}${hasPermission('edit_all')||hasPermission('consume_edit')?`<button class="blue" onclick="editMember(${m.id})">编辑会员</button>`:''}${!m.birthday?`<button class="yellow" onclick="updateMemberBirthday(${m.id})">补充生日</button>`:''}<button class="black" onclick="showMemberStats(${m.id})">客户档案</button>${hasPermission('delete_all')?`<button class="red" onclick="deleteMember(${m.id})">删除会员</button>`:''}</div><div id="consumeHistory_${m.id}" class="consume-history"></div>`:''}</div>`;
 }
 async function showMemberStats(id){
   const m=cacheMembers.find(x=>x.id===id) || (await supabaseClient.from('members').select('*').eq('id',id).single()).data;
@@ -569,7 +606,30 @@ async function deleteConsumeLog(logId, memberId){
   setTimeout(()=>showMemberStats(memberId),200);
 }
 
-async function editMember(id){ const m=cacheMembers.find(x=>x.id===id) || {}; const name=prompt('会员姓名：',m.name||''); if(name===null) return; const birthday=prompt('生日（例如 1980-05-20 或 05/20）：',m.birthday||''); const customerType=prompt('客户类型：japanese / chinese / other / student / tourist / vip',memberValue(m,'customer_type')||'japanese'); const scene=prompt('来店场景：family/company/couple/friends/alone/tourist/nearby/regular',memberValue(m,'scene')||'unknown'); const food=prompt('菜品偏好：hotpot/sichuan/xiaolongbao/dimsum/dessert/alcohol/setmeal',memberValue(m,'food')||'unknown'); const taste=prompt('口味属性：spicy_strong/spicy_mild/no_spicy/mala/light/rich',memberValue(m,'taste')||'unknown'); const remark=prompt('备注：',m.remark||''); const {error}=await supabaseClient.from('members').update({name,birthday,customer_type:customerType,scene,food,taste,remark}).eq('id',id); if(error){ alert(error.message); return; } alert('会员资料已更新'); await fetchMembers(); await searchMember(); renderAll(); }
+async function editMember(id){
+  const m=cacheMembers.find(x=>x.id===id) || {};
+  const name=prompt('会员姓名：',m.name||'');
+  if(name===null) return;
+  const birthday=await chooseDate('生日（可选）',m.birthday||'');
+  if(birthday===null) return;
+  const customerType=prompt('客户类型：japanese / chinese / other / student / tourist / vip',memberValue(m,'customer_type')||'japanese');
+  if(customerType===null) return;
+  const scene=prompt('来店场景：family/company/couple/friends/alone/tourist/nearby/regular',memberValue(m,'scene')||'unknown');
+  if(scene===null) return;
+  const food=prompt('菜品偏好：hotpot/sichuan/xiaolongbao/dimsum/dessert/alcohol/setmeal',memberValue(m,'food')||'unknown');
+  if(food===null) return;
+  const taste=prompt('口味属性：spicy_strong/spicy_mild/no_spicy/mala/light/rich',memberValue(m,'taste')||'unknown');
+  if(taste===null) return;
+  const remark=prompt('备注：',m.remark||'');
+  if(remark===null) return;
+  const {error}=await supabaseClient.from('members').update({name,birthday:birthday||null,customer_type:customerType,scene,food,taste,remark}).eq('id',id);
+  if(error){ alert(error.message); return; }
+  alert('会员资料已更新');
+  await fetchMembers();
+  await searchMember();
+  renderAll();
+}
+
 async function deleteMember(id){ if(!confirm('确定删除该会员吗？')) return; const {error}=await supabaseClient.from('members').delete().eq('id',id); if(error){ alert(error.message); return; } $('searchResult').innerHTML=''; alert('删除成功'); renderAll(); }
 
 async function renderMembers(){ const box=$('memberList'); if(!box) return; if(!currentUser||currentUser.role==='staff'){ box.innerHTML='<div class="member">无权限查看</div>'; return; } const data=await fetchMembers(); box.innerHTML=data.length?data.map(m=>memberCard(m,false)).join(''):'<div class="member">暂无会员</div>'; }
@@ -826,7 +886,7 @@ function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarte
 // ===== 客人预约页面：LINE入口用 =====
 (function(){
   const params=new URLSearchParams(window.location.search); const storeCode=params.get('store'); if(!storeCode) return; const storeName=stores[storeCode]||'大阪芙蓉苑';
-  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>誕生日（任意）/ 生日（选填）</label><input id="guestBirthday" placeholder="05/20"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
+  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>誕生日（任意）/ 生日（选填）</label><input id="guestBirthday" type="date" max="${todayStr()}"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
   window.submitGuestBooking=async function(){
     const name=$('guestName').value.trim();
     const phone=$('guestPhone').value.trim();
