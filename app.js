@@ -85,7 +85,7 @@ let bookingFilter = { status:'active', channel:'all', keyword:'', date:'' };
 function channelName(v){ return bookingChannels[v] || v || '未登记'; }
 function purposeName(v){ return bookingPurposes[v] || v || '普通用餐'; }
 function getBookingMeta(note){
-  const out={channel:'other', purpose:'normal', childChair:'no', seatRequest:'none', firstSource:'', raw:''};
+  const out={channel:'other', purpose:'normal', childChair:'no', seatRequest:'none', firstSource:'', memberId:'', memberStatus:'', birthday:'', raw:''};
   const text=String(note||'');
   const lines=text.split(/\n/);
   const raws=[];
@@ -96,6 +96,9 @@ function getBookingMeta(note){
     else if(clean.startsWith('[儿童椅]')) out.childChair=clean.replace('[儿童椅]','').trim()||out.childChair;
     else if(clean.startsWith('[座位]')) out.seatRequest=clean.replace('[座位]','').trim()||out.seatRequest;
     else if(clean.startsWith('[首次来源]')) out.firstSource=clean.replace('[首次来源]','').trim();
+    else if(clean.startsWith('[会员ID]')) out.memberId=clean.replace('[会员ID]','').trim();
+    else if(clean.startsWith('[会员状态]')) out.memberStatus=clean.replace('[会员状态]','').trim();
+    else if(clean.startsWith('[生日]')) out.birthday=clean.replace('[生日]','').trim();
     else if(clean) raws.push(clean);
   });
   const lowered=text.toLowerCase();
@@ -119,8 +122,22 @@ function buildBookingNote(raw, meta={}){
   const childChair=meta.childChair||'no';
   const seatRequest=meta.seatRequest||'none';
   const firstSource=meta.firstSource||channel;
+  const memberId=meta.memberId||'';
+  const memberStatus=meta.memberStatus||'';
+  const birthday=meta.birthday||'';
   const body=String(raw||'').trim();
-  return `[渠道]${channel}\n[首次来源]${firstSource}\n[目的]${purpose}\n[儿童椅]${childChair}\n[座位]${seatRequest}${body?'\n'+body:''}`;
+  return `[渠道]${channel}
+[首次来源]${firstSource}
+[目的]${purpose}
+[儿童椅]${childChair}
+[座位]${seatRequest}`
+    +(memberId?`
+[会员ID]${memberId}`:'')
+    +(memberStatus?`
+[会员状态]${memberStatus}`:'')
+    +(birthday?`
+[生日]${birthday}`:'')
+    +(body?`\n${body}`:'');
 }
 function bookingStatusGroup(status){
   if(status==='已取消') return 'cancel';
@@ -590,34 +607,94 @@ function renderBars(targetId,data,labelFn){ const box=$(targetId); if(!box) retu
 async function renderAnalysis(){ const data=await fetchMembers(); const bookings=await fetchBookings(); const total=data.length; const active=data.filter(m=>getActiveKey(m)==='active').length; const warning=data.filter(m=>getActiveKey(m)==='warning').length; const sleep=data.filter(m=>getActiveKey(m)==='sleep').length; const lost=data.filter(m=>getActiveKey(m)==='lost').length; const silver=data.filter(m=>getMemberLevel(m)==='银卡会员').length; const gold=data.filter(m=>getMemberLevel(m)==='金卡会员').length; const diamond=data.filter(m=>getMemberLevel(m)==='钻石会员').length; const channelSummary=bookingSourceSummaryHtml(bookings); const conversion=bookingConversionSummaryHtml(bookings); $('memberSummary').innerHTML=`<h3>会员总览</h3>会员总数：${total}<br>🟢 活跃会员：${active}<br>🟡 提醒会员：${warning}<br>🟠 沉睡会员：${sleep}<br>🔴 流失会员：${lost}<br><br>银卡会员：${silver}<br>金卡会员：${gold}<br>钻石会员：${diamond}<br><br><h4>预约来源结构</h4>${channelSummary}<h4>渠道成交情况</h4>${conversion}<h4>30天以上未到店提醒</h4>${data.filter(m=>['sleep','lost'].includes(getActiveKey(m))).map(m=>'• '+m.name+'｜最后到店：'+(m.last_visit||'未记录')).join('<br>')||'暂无'}`; renderBars('typeAnalysis',countBy(data,m=>memberValue(m,'customer_type','customerType')),k=>label('customerType',k)); renderBars('sceneAnalysis',countBy(data,m=>memberValue(m,'scene','visitScene')),k=>label('visitScene',k)); renderBars('foodAnalysis',countBy(data,m=>memberValue(m,'food','foodPreference')),k=>label('foodPreference',k)); renderBars('tasteAnalysis',countBy(data,m=>memberValue(m,'taste','tastePreference')),k=>label('tastePreference',k)); renderBars('activeAnalysis',countBy(data,m=>getActiveKey(m)),k=>labels[lang][k]); renderBars('storeAnalysis',countBy(data,m=>memberValue(m,'store')||stores[m.store_code]||'未登记'),k=>k); }
 
 
+
+function normalizePhoneNumber(phone){
+  return String(phone||'').replace(/\D/g,'');
+}
+function purposeToScene(purpose){
+  const map={family:'family',company:'company',business:'company',couple:'couple',friends:'friends',tourist:'tourist'};
+  return map[purpose]||'unknown';
+}
+function upsertSourceRemark(remark, channel, isNew=false){
+  let text=String(remark||'').trim();
+  const source=channelName(channel);
+  if(!/\[首次来源\]/.test(text)) text+=(text?'\n':'')+`[首次来源]${source}`;
+  if(/\[最近来源\][^\n]*/.test(text)) text=text.replace(/\[最近来源\][^\n]*/,`[最近来源]${source}`);
+  else text+=(text?'\n':'')+`[最近来源]${source}`;
+  if(isNew && !/\[自动会员\]/.test(text)) text+=(text?'\n':'')+'[自动会员]预约自动生成';
+  return text;
+}
+async function ensureMemberFromBooking({name,phone,birthday='',storeCode='',channel='other',purpose='normal',note=''}){
+  if(!supabaseClient) return {ok:false,error:'Supabase未连接'};
+  const normalized=normalizePhoneNumber(phone);
+  if(!normalized) return {ok:false,error:'电话号码不能为空'};
+  const {data:allMembers,error:readError}=await supabaseClient.from('members').select('*');
+  if(readError) return {ok:false,error:'会员查询失败：'+readError.message};
+  let member=(allMembers||[]).find(m=>normalizePhoneNumber(m.phone)===normalized);
+  if(member){
+    const updates={remark:upsertSourceRemark(member.remark,channel,false)};
+    if(!member.birthday && birthday) updates.birthday=birthday;
+    if(!member.store_code && storeCode) updates.store_code=storeCode;
+    if(!member.store && storeCode) updates.store=storeName(storeCode);
+    const {error:updateError}=await supabaseClient.from('members').update(updates).eq('id',member.id);
+    if(updateError) return {ok:false,error:'会员关联更新失败：'+updateError.message};
+    member={...member,...updates};
+    return {ok:true,member,isNew:false};
+  }
+  const row={
+    name:name||'预约客户', phone, birthday:birthday||null,
+    store:storeName(storeCode)||'未登记', store_code:storeCode||null,
+    customer_type:'unknown', scene:purposeToScene(purpose), food:'unknown', taste:'unknown',
+    remark:upsertSourceRemark(note,channel,true),
+    points:0, level:'普通会员', visit_count:0, total_spent:0, consume_count:0
+  };
+  const {data:newMember,error:insertError}=await supabaseClient.from('members').insert([row]).select('*').single();
+  if(insertError) return {ok:false,error:'自动创建会员失败：'+insertError.message};
+  return {ok:true,member:newMember,isNew:true};
+}
+
 async function addBooking(){
   const channel=$('bookingChannel') ? $('bookingChannel').value : 'phone';
   const purpose=$('bookingPurpose') ? $('bookingPurpose').value : 'normal';
   const childChair=$('bookingChildChair') ? $('bookingChildChair').value : 'no';
   const seatRequest=$('bookingSeatRequest') ? $('bookingSeatRequest').value : 'none';
+  const birthday=$('bookingBirthday') ? $('bookingBirthday').value.trim() : '';
   const rawNote=$('bookingNote').value.trim();
-  const selectedBookingStore = $('bookingStore') ? $('bookingStore').value : (isAllStoreScope() ? '1f' : currentStoreScope());
+  const selectedBookingStore=$('bookingStore') ? $('bookingStore').value : (isAllStoreScope() ? '1f' : currentStoreScope());
+  const storeCode=isAllStoreScope() ? normalizeStoreCode(selectedBookingStore) : currentStoreScope();
+  const name=$('bookingName').value.trim();
+  const phone=$('bookingPhone').value.trim();
+  const date=$('bookingDate').value;
+  const time=$('bookingTime').value;
+  const people=Number($('bookingPeople').value||0);
+  if(!name||!phone||!date||!time||!people){ alert('请输入姓名、电话、日期、时间、人数'); return; }
+
+  const memberResult=await ensureMemberFromBooking({name,phone,birthday,storeCode,channel,purpose,note:rawNote});
+  if(!memberResult.ok){ alert(memberResult.error); return; }
+
   const row={
-    store_code: isAllStoreScope() ? normalizeStoreCode(selectedBookingStore) : currentStoreScope(),
-    name:$('bookingName').value.trim(),
-    phone:$('bookingPhone').value.trim(),
-    booking_date:$('bookingDate').value,
-    booking_time:$('bookingTime').value,
-    people:Number($('bookingPeople').value||0),
+    store_code:storeCode, name, phone, booking_date:date, booking_time:time, people,
     table_no:$('bookingRoom').value.trim(),
-    note:buildBookingNote(rawNote,{channel,purpose,childChair,seatRequest}),
+    note:buildBookingNote(rawNote,{
+      channel,purpose,childChair,seatRequest,firstSource:channel,
+      memberId:memberResult.member.id,
+      memberStatus:memberResult.isNew?'new':'existing',
+      birthday:birthday||memberResult.member.birthday||''
+    }),
     status:'已预约'
   };
-  if(!row.name||!row.phone||!row.booking_date||!row.booking_time||!row.people){ alert('请输入姓名、电话、日期、时间、人数'); return; }
   const {error}=await supabaseClient.from('bookings').insert([row]);
   if(error){ alert('预约保存失败：'+error.message); return; }
-  ['bookingName','bookingPhone','bookingDate','bookingTime','bookingPeople','bookingRoom','bookingNote'].forEach(id=>$(id).value='');
+
+  ['bookingName','bookingPhone','bookingBirthday','bookingDate','bookingTime','bookingPeople','bookingRoom','bookingNote'].forEach(id=>{if($(id)) $(id).value='';});
   if($('bookingStore')) $('bookingStore').value=isAllStoreScope()?'1f':currentStoreScope();
   if($('bookingChannel')) $('bookingChannel').value='line';
   if($('bookingPurpose')) $('bookingPurpose').value='normal';
   if($('bookingChildChair')) $('bookingChildChair').value='no';
   if($('bookingSeatRequest')) $('bookingSeatRequest').value='none';
-  alert('预约保存成功'); await renderBookings(); await renderStats();
+  await fetchMembers();
+  alert(memberResult.isNew?'预约保存成功，并已自动生成会员':'预约保存成功，已关联原会员');
+  await renderBookings(); await renderStats();
 }
 function bookingFilterControls(bookings){
   const today=todayStr();
@@ -665,7 +742,7 @@ async function renderBookings(){
 function bookingCard(b){
   const meta=getBookingMeta(b.note);
   const member=bookingMemberByPhone(b.phone);
-  const memberLine=member?`<br><span class="badge">老会员</span> ${getMemberLevel(member)}｜累计：${yen(member.total_spent)}｜到店：${Number(member.visit_count||0)}次｜最后到店：${member.last_visit||'未记录'}`:'<br><span class="badge badge-gray">新客户/未入会</span>';
+  const memberLine=member?`<br><span class="badge">${meta.memberStatus==='new'?'预约自动生成会员':'已关联会员'}</span> ${getMemberLevel(member)}｜累计：${yen(member.total_spent)}｜到店：${Number(member.visit_count||0)}次｜最后到店：${member.last_visit||'未记录'}`:'<br><span class="badge badge-red">会员关联异常</span>';
   return `<div class="member booking-item"><strong>${esc(b.name||'')}</strong><br>${esc(b.people||'')}位｜${esc(b.booking_date||'')} ${esc(b.booking_time||'')}<br>电话：${canViewFullPhone()?esc(b.phone):maskPhone(b.phone)}<br>门店：${esc(storeName(b.store_code))}｜桌号：${esc(b.table_no||'未登记')}<br>来源：<b>${esc(channelName(meta.channel))}</b>｜首次来源：${esc(channelName(meta.firstSource||meta.channel))}<br>目的：${esc(purposeName(meta.purpose))}｜儿童椅：${esc(childChairLabels[meta.childChair]||meta.childChair)}｜座位：${esc(seatLabels[meta.seatRequest]||meta.seatRequest)}<br>备注：${esc(meta.raw||'无')}${memberLine}<br>状态：<select onchange="changeBookingStatus(${b.id},this.value)"><option value="已预约" ${b.status==='已预约'?'selected':''}>已预约</option><option value="待确认" ${b.status==='待确认'?'selected':''}>待确认</option><option value="已确认" ${b.status==='已确认'?'selected':''}>已确认</option><option value="已到店" ${b.status==='已到店'?'selected':''}>已到店</option><option value="已完成" ${b.status==='已完成'?'selected':''}>已完成</option><option value="已取消" ${b.status==='已取消'?'selected':''}>已取消</option><option value="No Show" ${b.status==='No Show'?'selected':''}>No Show</option></select><div class="action-row"><button class="green" onclick="changeBookingStatus(${b.id},'已到店')">已到店</button>${hasPermission('edit_booking')||hasPermission('edit_all')?`<button class="blue" onclick="editBooking(${b.id})">修改预约</button><button class="orange" onclick="changeBookingStatus(${b.id},'No Show')">No Show</button>`:''}${hasPermission('delete_all')?`<button class="red" onclick="deleteBooking(${b.id})">删除预约</button>`:''}</div></div>`;
 }
 async function editBooking(id){
@@ -690,7 +767,15 @@ async function changeBookingStatus(id,status){
   const b=cacheBookings.find(x=>x.id===id); const oldStatus=b?b.status:'';
   const {error}=await supabaseClient.from('bookings').update({status}).eq('id',id);
   if(error){ alert(error.message); return; }
-  if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){ const member=bookingMemberByPhone(b.phone); if(member) await recordVisit(member.id); }
+  if(oldStatus!=='已到店' && oldStatus!=='已完成' && (status==='已到店'||status==='已完成') && b&&b.phone){
+    let member=bookingMemberByPhone(b.phone);
+    if(!member){
+      const meta=getBookingMeta(b.note);
+      const ensured=await ensureMemberFromBooking({name:b.name,phone:b.phone,birthday:meta.birthday,storeCode:b.store_code,channel:meta.channel,purpose:meta.purpose,note:meta.raw});
+      if(ensured.ok) member=ensured.member;
+    }
+    if(member) await recordVisit(member.id);
+  }
   await fetchBookings();
   renderBookings(); renderStats();
 }
@@ -741,6 +826,35 @@ function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarte
 // ===== 客人预约页面：LINE入口用 =====
 (function(){
   const params=new URLSearchParams(window.location.search); const storeCode=params.get('store'); if(!storeCode) return; const storeName=stores[storeCode]||'大阪芙蓉苑';
-  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
-  window.submitGuestBooking=async function(){ const name=$('guestName').value.trim(); const phone=$('guestPhone').value.trim(); const date=$('guestDate').value; const time=$('guestTime').value; const people=$('guestPeople').value; const note=$('guestNote').value.trim(); const purpose=$('guestPurpose').value; const childChair=$('guestChildChair').value; const seatRequest=$('guestSeatRequest').value; if(!name||!phone||!date||!time||!people){ alert('お名前・電話・日付・時間・人数を入力してください。'); return; } const {error}=await supabaseClient.from('bookings').insert([{name,phone,store_code:storeCode,booking_date:date,booking_time:time,people:Number(people),table_no:'',note:buildBookingNote(note,{channel:'line',purpose,childChair,seatRequest}),status:'已预约'}]); if(error){ alert('预约保存失败：'+error.message); return; } document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:80px auto;background:white;border-radius:18px;padding:28px;text-align:center;"><h1 style="color:#8b0000;">预约已提交</h1><p>ありがとうございます。ご予約を受け付けました。</p><p><b>${storeName}</b></p><p>${date} ${time} / ${people}名様</p></div></div>`; };
+  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>誕生日（任意）/ 生日（选填）</label><input id="guestBirthday" placeholder="05/20"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
+  window.submitGuestBooking=async function(){
+    const name=$('guestName').value.trim();
+    const phone=$('guestPhone').value.trim();
+    const birthday=$('guestBirthday').value.trim();
+    const date=$('guestDate').value;
+    const time=$('guestTime').value;
+    const people=$('guestPeople').value;
+    const note=$('guestNote').value.trim();
+    const purpose=$('guestPurpose').value;
+    const childChair=$('guestChildChair').value;
+    const seatRequest=$('guestSeatRequest').value;
+    if(!name||!phone||!date||!time||!people){ alert('お名前・電話・日付・時間・人数を入力してください。'); return; }
+
+    const memberResult=await ensureMemberFromBooking({name,phone,birthday,storeCode,channel:'line',purpose,note});
+    if(!memberResult.ok){ alert(memberResult.error); return; }
+
+    const bookingNote=buildBookingNote(note,{
+      channel:'line',purpose,childChair,seatRequest,firstSource:'line',
+      memberId:memberResult.member.id,
+      memberStatus:memberResult.isNew?'new':'existing',
+      birthday:birthday||memberResult.member.birthday||''
+    });
+    const {error}=await supabaseClient.from('bookings').insert([{
+      name,phone,store_code:storeCode,booking_date:date,booking_time:time,
+      people:Number(people),table_no:'',note:bookingNote,status:'已预约'
+    }]);
+    if(error){ alert('预约保存失败：'+error.message); return; }
+
+    document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:80px auto;background:white;border-radius:18px;padding:28px;text-align:center;"><h1 style="color:#8b0000;">预约已提交</h1><p>ありがとうございます。ご予約を受け付けました。</p><p><b>${storeName}</b></p><p>${date} ${time} / ${people}名様</p><p style="color:#666">${memberResult.isNew?'今回のご予約で会員情報が自動作成されました。':'既存の会員情報に予約を登録しました。'}</p></div></div>`;
+  };
 })();
