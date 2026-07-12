@@ -80,6 +80,74 @@ const bookingPurposes = {
 };
 const childChairLabels = { yes:'需要儿童椅', no:'不需要儿童椅' };
 const seatLabels = { none:'无座位要求', window:'靠窗', private:'包间', quiet:'安静位置', near_exit:'靠近出口', other:'其他' };
+
+const kyotoTables = [
+  {id:'A1', seats:4, zone:'A区'}, {id:'A2', seats:4, zone:'A区'},
+  {id:'A3', seats:4, zone:'A区'}, {id:'A4', seats:4, zone:'A区'},
+  {id:'B1', seats:6, zone:'B区'}, {id:'B2', seats:6, zone:'B区'},
+  {id:'C1', seats:6, zone:'C区'}, {id:'C2', seats:6, zone:'C区'},
+  {id:'C3', seats:6, zone:'C区'}, {id:'C4', seats:6, zone:'C区'},
+  {id:'C5', seats:6, zone:'C区'}, {id:'C6', seats:6, zone:'C区'},
+  {id:'VIP', seats:6, zone:'VIP室', vip:true}
+];
+
+function kyotoTableLabel(t){
+  return t.vip ? `VIP室（${t.seats}人座・需店铺确认）` : `${t.id}（${t.seats}人座）`;
+}
+function bookingBlocksTable(b){
+  return !['已取消','No Show'].includes(String(b.status||''));
+}
+async function occupiedKyotoTables(date,time,excludeId=null){
+  if(!date || !time || !supabaseClient) return new Set();
+  const {data,error}=await supabaseClient.from('bookings')
+    .select('id,table_no,status')
+    .eq('store_code','kyoto')
+    .eq('booking_date',date)
+    .eq('booking_time',time);
+  if(error){ console.error('京都桌台读取失败',error); return new Set(); }
+  return new Set((data||[])
+    .filter(b=>bookingBlocksTable(b) && (!excludeId || Number(b.id)!==Number(excludeId)))
+    .map(b=>String(b.table_no||'').trim().toUpperCase())
+    .filter(Boolean));
+}
+async function fillKyotoTableSelect(selectEl,{people,date,time,currentValue='',allowOther=false,excludeId=null}={}){
+  if(!selectEl) return;
+  const count=Number(people||0);
+  const occupied=await occupiedKyotoTables(date,time,excludeId);
+  const options=['<option value="">请选择桌号</option>'];
+  kyotoTables.forEach(t=>{
+    const tooSmall=count>0 && count>t.seats;
+    const isOccupied=occupied.has(t.id);
+    const disabled=tooSmall || isOccupied;
+    let suffix='';
+    if(tooSmall) suffix='（人数超过座位数）';
+    else if(isOccupied) suffix='（该时段已预约）';
+    else if(count>0 && t.seats===count) suffix='（推荐）';
+    options.push(`<option value="${t.id}" ${disabled?'disabled':''} ${currentValue===t.id?'selected':''}>${kyotoTableLabel(t)}${suffix}</option>`);
+  });
+  if(allowOther) options.push(`<option value="OTHER" ${currentValue==='OTHER'?'selected':''}>其他 / 暂不分配</option>`);
+  selectEl.innerHTML=options.join('');
+}
+async function refreshBackendBookingTables(){
+  const room=$('bookingRoom');
+  if(!room) return;
+  const selectedStore=$('bookingStore') ? normalizeStoreCode($('bookingStore').value) : currentStoreScope();
+  const storeCode=isAllStoreScope()?selectedStore:currentStoreScope();
+  const hint=$('bookingTableHint');
+  if(storeCode==='kyoto'){
+    await fillKyotoTableSelect(room,{
+      people:$('bookingPeople')?.value,
+      date:$('bookingDate')?.value,
+      time:$('bookingTime')?.value,
+      currentValue:room.value,
+      allowOther:true
+    });
+    if(hint) hint.textContent='京都店桌号：A1-A4为4人座，B1-B2、C1-C6和VIP室为6人座。';
+  }else{
+    room.innerHTML='<option value="">桌号 / 包间（可选）</option><option value="OTHER">其他 / 暂不分配</option>';
+    if(hint) hint.textContent='非京都店可暂不分配桌号。';
+  }
+}
 let bookingFilter = { status:'active', channel:'all', keyword:'', date:'' };
 
 function channelName(v){ return bookingChannels[v] || v || '未登记'; }
@@ -342,6 +410,15 @@ function applyPermission(){
   $('roleText').innerText='当前账号：'+currentUser.username+' / '+currentUser.labelZh+' / '+scopeStoreName();
   buildSidebar();
   prepareStoreScopedInputs();
+  ['bookingStore','bookingPeople','bookingDate','bookingTime'].forEach(id=>{
+    const el=$(id);
+    if(el && !el.dataset.tableBound){
+      el.dataset.tableBound='1';
+      el.addEventListener('change',refreshBackendBookingTables);
+      el.addEventListener('input',refreshBackendBookingTables);
+    }
+  });
+  refreshBackendBookingTables();
   renderAll();
 }
 
@@ -728,13 +805,25 @@ async function addBooking(){
   const time=$('bookingTime').value;
   const people=Number($('bookingPeople').value||0);
   if(!name||!phone||!date||!time||!people){ alert('请输入姓名、电话、日期、时间、人数'); return; }
+  const selectedTable=$('bookingRoom') ? String($('bookingRoom').value||'').trim() : '';
+  if(storeCode==='kyoto'){
+    if(!selectedTable || selectedTable==='OTHER'){ alert('京都店预约请选择具体桌号'); return; }
+    const table=kyotoTables.find(t=>t.id===selectedTable);
+    if(!table || people>table.seats){ alert('所选桌位不足，请重新选择'); return; }
+    const occupied=await occupiedKyotoTables(date,time);
+    if(occupied.has(selectedTable)){
+      alert('该桌在所选日期和时间已经被预约，请选择其他桌号');
+      await refreshBackendBookingTables();
+      return;
+    }
+  }
 
   const memberResult=await ensureMemberFromBooking({name,phone,birthday,storeCode,channel,purpose,note:rawNote});
   if(!memberResult.ok){ alert(memberResult.error); return; }
 
   const row={
     store_code:storeCode, name, phone, booking_date:date, booking_time:time, people,
-    table_no:$('bookingRoom').value.trim(),
+    table_no:selectedTable==='OTHER'?'':selectedTable,
     note:buildBookingNote(rawNote,{
       channel,purpose,childChair,seatRequest,firstSource:channel,
       memberId:memberResult.member.id,
@@ -752,6 +841,7 @@ async function addBooking(){
   if($('bookingPurpose')) $('bookingPurpose').value='normal';
   if($('bookingChildChair')) $('bookingChildChair').value='no';
   if($('bookingSeatRequest')) $('bookingSeatRequest').value='none';
+  await refreshBackendBookingTables();
   await fetchMembers();
   alert(memberResult.isNew?'预约保存成功，并已自动生成会员':'预约保存成功，已关联原会员');
   await renderBookings(); await renderStats();
@@ -886,7 +976,29 @@ function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarte
 // ===== 客人预约页面：LINE入口用 =====
 (function(){
   const params=new URLSearchParams(window.location.search); const storeCode=params.get('store'); if(!storeCode) return; const storeName=stores[storeCode]||'大阪芙蓉苑';
-  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>誕生日（任意）/ 生日（选填）</label><input id="guestBirthday" type="date" max="${todayStr()}"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1"><label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
+  document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:0 auto;background:white;border-radius:18px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.25);"><h1 style="color:#8b0000;margin-bottom:6px;">大阪芙蓉苑</h1><h2 style="margin-top:0;">${storeName} 予約</h2><p style="color:#666;">ご予約内容をご入力ください。</p><label>お名前 / 姓名</label><input id="guestName"><label>電話番号 / 电话</label><input id="guestPhone"><label>誕生日（任意）/ 生日（选填）</label><input id="guestBirthday" type="date" max="${todayStr()}"><label>予約日 / 日期</label><input id="guestDate" type="date"><label>予約時間 / 时间</label><input id="guestTime" type="time"><label>人数 / 人数</label><input id="guestPeople" type="number" min="1">${storeCode==='kyoto'?`<label>テーブル / 桌号</label><select id="guestTable"><option value="">请先选择日期、时间和人数</option></select><div id="guestTableHint" style="font-size:12px;color:#666;margin:-6px 0 14px;line-height:1.6;">A1-A4为4人座；B1-B2、C1-C6和VIP室为6人座。已预约的桌号不能选择。</div>`:''}<label>ご利用目的 / 预约目的</label><select id="guestPurpose"><option value="normal">普通用餐</option><option value="birthday">生日</option><option value="family">家庭聚餐</option><option value="company">公司聚餐</option><option value="business">商务宴请</option><option value="friends">朋友聚会</option><option value="couple">情侣约会</option><option value="tourist">旅游</option><option value="other">其他</option></select><label>儿童椅</label><select id="guestChildChair"><option value="no">不需要</option><option value="yes">需要</option></select><label>座位要求</label><select id="guestSeatRequest"><option value="none">无要求</option><option value="window">靠窗</option><option value="private">包间</option><option value="quiet">安静位置</option><option value="other">其他</option></select><label>备注 / ご要望</label><textarea id="guestNote" rows="3"></textarea><button onclick="submitGuestBooking()" style="width:100%;padding:14px;background:#b00020;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;">予約する / 提交预约</button><p style="font-size:12px;color:#888;margin-top:16px;">※送信後、店舗より確認のご連絡をする場合があります。</p></div></div>`;
+  if(storeCode==='kyoto'){
+    window.refreshGuestKyotoTables=async function(){
+      const tableSelect=$('guestTable');
+      if(!tableSelect) return;
+      const people=$('guestPeople').value;
+      const date=$('guestDate').value;
+      const time=$('guestTime').value;
+      if(!people || !date || !time){
+        tableSelect.innerHTML='<option value="">请先选择日期、时间和人数</option>';
+        return;
+      }
+      await fillKyotoTableSelect(tableSelect,{people,date,time,currentValue:tableSelect.value});
+    };
+    ['guestPeople','guestDate','guestTime'].forEach(id=>{
+      const el=$(id);
+      if(el){
+        el.addEventListener('change',window.refreshGuestKyotoTables);
+        el.addEventListener('input',window.refreshGuestKyotoTables);
+      }
+    });
+  }
+
   window.submitGuestBooking=async function(){
     const name=$('guestName').value.trim();
     const phone=$('guestPhone').value.trim();
@@ -898,7 +1010,19 @@ function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarte
     const purpose=$('guestPurpose').value;
     const childChair=$('guestChildChair').value;
     const seatRequest=$('guestSeatRequest').value;
+    const selectedTable=storeCode==='kyoto' && $('guestTable') ? String($('guestTable').value||'').trim() : '';
     if(!name||!phone||!date||!time||!people){ alert('お名前・電話・日付・時間・人数を入力してください。'); return; }
+    if(storeCode==='kyoto'){
+      if(!selectedTable){ alert('テーブルを選択してください。/ 请选择桌号。'); return; }
+      const table=kyotoTables.find(t=>t.id===selectedTable);
+      if(!table || Number(people)>table.seats){ alert('人数に合うテーブルを選択してください。/ 请选择符合人数的桌位。'); return; }
+      const occupied=await occupiedKyotoTables(date,time);
+      if(occupied.has(selectedTable)){
+        alert('このテーブルはすでに予約されています。別のテーブルを選択してください。');
+        await window.refreshGuestKyotoTables();
+        return;
+      }
+    }
 
     const memberResult=await ensureMemberFromBooking({name,phone,birthday,storeCode,channel:'line',purpose,note});
     if(!memberResult.ok){ alert(memberResult.error); return; }
@@ -911,10 +1035,11 @@ function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarte
     });
     const {error}=await supabaseClient.from('bookings').insert([{
       name,phone,store_code:storeCode,booking_date:date,booking_time:time,
-      people:Number(people),table_no:'',note:bookingNote,status:'已预约'
+      people:Number(people),table_no:selectedTable,note:bookingNote,
+      status:selectedTable==='VIP'?'待确认':'已预约'
     }]);
     if(error){ alert('预约保存失败：'+error.message); return; }
 
-    document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:80px auto;background:white;border-radius:18px;padding:28px;text-align:center;"><h1 style="color:#8b0000;">预约已提交</h1><p>ありがとうございます。ご予約を受け付けました。</p><p><b>${storeName}</b></p><p>${date} ${time} / ${people}名様</p><p style="color:#666">${memberResult.isNew?'今回のご予約で会員情報が自動作成されました。':'既存の会員情報に予約を登録しました。'}</p></div></div>`;
+    document.body.innerHTML=`<div style="min-height:100vh;background:linear-gradient(135deg,#8b0000,#2b0000);padding:24px;font-family:Arial,'Noto Sans JP',sans-serif;"><div style="max-width:520px;margin:80px auto;background:white;border-radius:18px;padding:28px;text-align:center;"><h1 style="color:#8b0000;">预约已提交</h1><p>ありがとうございます。ご予約を受け付けました。</p><p><b>${storeName}</b></p><p>${date} ${time} / ${people}名様</p>${selectedTable?`<p><b>テーブル / 桌号：${selectedTable==='VIP'?'VIP室':selectedTable}</b></p>`:''}${selectedTable==='VIP'?`<p style="color:#9a6700;">VIP室は店舗確認後に確定します。/ VIP室需店铺确认后生效。</p>`:''}<p style="color:#666">${memberResult.isNew?'今回のご予約で会員情報が自動作成されました。':'既存の会員情報に予約を登録しました。'}</p></div></div>`;
   };
 })();
