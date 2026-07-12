@@ -71,3 +71,20 @@ textarea{resize:vertical}button{cursor:pointer}
 .role-alert span{display:block;color:#666;font-size:14px}.role-alert b{display:block;font-size:30px;margin-top:8px}.role-alert.danger-box{border-left-color:#dc2626}.role-alert.warn-box{border-left-color:#f59e0b}.role-alert.good-box{border-left-color:#16a34a}
 .role-list{background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 16px rgba(0,0,0,.08);margin-bottom:18px}.role-list h3{margin:0 0 14px}.role-list-item{padding:12px 0;border-bottom:1px solid #eee;line-height:1.6}.role-list-item:last-child{border-bottom:0}.role-empty{color:#777;padding:10px 0}
 .sidebar .menu-group-title{color:#9ca3af;font-size:12px;font-weight:900;padding:10px 6px 7px;letter-spacing:.08em}
+
+
+/* V8.2 京都店桌台预约 */
+.table-hint{
+  grid-column:1/-1;
+  margin:-8px 0 8px;
+  padding:9px 12px;
+  border-radius:10px;
+  background:#fff8e8;
+  color:#7a5520;
+  font-size:13px;
+  line-height:1.5;
+}
+#guestTable option:disabled,
+#bookingRoom option:disabled{
+  color:#999;
+}
