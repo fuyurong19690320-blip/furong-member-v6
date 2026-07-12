@@ -483,11 +483,128 @@ async function renderRoleDashboard(){
   </div>`;
 }
 
-function setLang(l){
-  lang=l; const t=labels[l]; const ids={navDashboard:'dashboard',navSearch:'search',navRegister:'register',navBirthday:'birthday',navStatus:'status',navMembers:'members',navAnalysis:'analysis',navPush:'push',navSettings:'settings',titleSearch:'search',titleRegister:'register',titleBirthday:'birthday',titleStatus:'status',titleMembers:'members',titleAnalysis:'analysis',titlePush:'push',titleSettings:'settings',dashboardTitle:'todayWork',searchSub:'searchSub',statTotalLabel:'total',statBirthLabel:'birthMonth',statVisitLabel:'visitMonth',statStatusLabel:'currentStatus',labelName:'name',labelPhone:'phone',labelBirthday:'birth',labelStore:'store',sectionProfile:'profile',labelCustomerType:'customerType',labelVisitScene:'visitScene',labelFoodPreference:'foodPreference',labelTastePreference:'tastePreference',birthToday:'today',birthMonth:'month',birthAll:'all',stOpen:'open',stBusy:'busy',stStop:'stop',stClosed:'closed',statusSub:'statusSub',saveBtn:'save',searchBtn:'searchBtn',pushBtn:'pushBtn',quickSearch:'search',quickRegister:'register',quickAnalysis:'analysis',anaType:'anaType',anaScene:'anaScene',anaFood:'anaFood',anaTaste:'anaTaste',anaActive:'anaActive',anaStore:'anaStore'};
-  for(const id in ids){ if($(id)) $(id).innerText=t[ids[id]]; }
-  if($('logoutBtn')) $('logoutBtn').innerText=t.logout; updateStatusText(); renderAll();
+
+// ===== V8.3 全界面中日文切换 =====
+const fullJaMap = {
+  '首页':'ホーム','首页仪表盘':'ホームダッシュボード','老板驾驶舱':'オーナーダッシュボード','店长工作台':'店長ダッシュボード','前台工作台':'フロント業務','今日工作':'本日の業務',
+  '客户管理':'顧客管理','本店管理':'店舗管理','预约管理':'予約管理','营销分析':'マーケティング分析','系统管理':'システム管理',
+  '会员查询':'会員検索','新增会员':'会員登録','会员列表':'会員一覧','本店会员':'店舗会員','生日会员':'誕生日会員','今日生日':'本日の誕生日','营业状态':'営業状態','客户分析':'顧客分析','本店数据':'店舗データ','LINE推送':'LINE配信','系统设置':'システム設定',
+  '会员总数':'会員総数','本月生日':'今月の誕生日','本月到店':'今月の来店','今日预约':'本日の予約','今日消费':'本日の売上','当前状态':'現在の状態','今日操作':'本日の操作','今日渠道成交':'本日の流入経路実績',
+  '账号':'アカウント','密码':'パスワード','登录':'ログイン','退出':'ログアウト','测试账号：':'テストアカウント：','管理员':'管理者','京都店长':'京都店 店長','京都前台':'京都店 フロント','京都服务员':'京都店 スタッフ','PARCO店长':'PARCO店 店長',
+  '姓名':'氏名','电话号码':'電話番号','联系电话':'電話番号','生日（可选）':'誕生日（任意）','生日（月日）':'誕生日（月日）','常去门店':'よく利用する店舗','客户画像':'顧客プロフィール','客户类型':'顧客タイプ','来店场景':'来店シーン','菜品偏好':'料理の好み','口味属性':'味の好み','备注':'備考','保存会员':'会員を保存',
+  '输入电话后4位':'電話番号下4桁を入力','输入电话后4位，店员端只显示隐藏后的电话。':'電話番号の下4桁を入力してください。スタッフ画面では電話番号を一部非表示にします。','查询':'検索',
+  '今日生日':'本日の誕生日','本月生日':'今月の誕生日','全部生日':'すべての誕生日','暂无生日会员':'誕生日会員はいません',
+  '营业中':'営業中','忙碌中':'混雑中','停止接待':'受付停止','已打烊':'閉店','当前状态：':'現在の状態：','店员可切换现场营业状态，防止误操作会二次确认。':'スタッフは営業状態を切り替えられます。誤操作防止のため確認画面が表示されます。',
+  '预约管理':'予約管理','提交预约时，系统会按电话号码自动关联老会员；新客户会自动生成会员，无需另外注册。':'予約登録時、電話番号で既存会員を自動照合します。新規のお客様は会員として自動登録され、別途登録は不要です。','客户姓名':'お客様名','预约列表':'予約一覧','保存预约':'予約を保存','暂无预约记录':'予約はありません',
+  '桌号 / 包间（京都店请选择）':'テーブル／個室（京都店は選択必須）','京都店会根据人数、日期和时间显示可选桌号。':'京都店では人数・日付・時間に応じて選択可能なテーブルを表示します。','桌号 / 包间（可选）':'テーブル／個室（任意）','其他 / 暂不分配':'その他／未割当',
+  '本店一楼':'長堀橋店1階','本店二楼火锅':'長堀橋店2階 火鍋','京都店':'京都店','PARCO店':'PARCO店',
+  'LINE官方':'LINE公式','Google地图':'Googleマップ','电话预约':'電話予約','小红书':'RED','到店预约':'店頭予約','KOC达人':'KOC','酒店介绍':'ホテル紹介','朋友介绍':'友人紹介','官网预约':'公式サイト予約','微信预约':'WeChat予約','其他':'その他',
+  '普通用餐':'通常利用','生日':'誕生日','家庭聚餐':'家族利用','公司聚餐':'会社利用','商务宴请':'接待・会食','朋友聚会':'友人同士','情侣约会':'デート','旅游':'観光',
+  '不需要儿童椅':'子ども椅子不要','需要儿童椅':'子ども椅子必要','无座位要求':'座席指定なし','靠窗':'窓側','包间':'個室','安静位置':'静かな席','靠近出口':'出口付近',
+  '备注：生日、忌口、儿童椅等':'備考：誕生日、アレルギー、子ども椅子など',
+  '全部会员':'全会員','日本客人':'日本人のお客様','中国客人':'中国人のお客様','本月生日会员':'今月誕生日の会員','30天未到店会员':'30日未来店の会員','90天沉睡会员':'90日休眠会員','家庭聚餐客人':'家族利用のお客様','火锅偏好客人':'火鍋が好みのお客様','不吃辣客人':'辛い物が苦手なお客様','推送标题':'配信タイトル','推送内容':'配信内容','模拟发送':'テスト配信',
+  '导出会员数据':'会員データをエクスポート','清空本地缓存':'ローカルキャッシュを削除','V6已经改为优先读取Supabase，清空这里只会清除本机缓存，不会删除云端会员。':'データはSupabaseを優先して読み込みます。ここで削除されるのは端末内キャッシュのみで、クラウド上の会員データは削除されません。',
+  '客户类型':'顧客タイプ','来店场景':'来店シーン','菜品偏好':'料理の好み','口味属性':'味の好み','活跃度':'アクティブ度','门店分布':'店舗別分布','会员总览':'会員概要','暂无数据':'データなし','暂无':'なし','读取中...':'読み込み中...',
+  '日本客人':'日本人のお客様','中国客人':'中国人のお客様','其他外国客人':'その他外国人','不确定':'不明','情侣':'カップル','一个人':'お一人様','游客':'観光客','附近居民':'近隣住民','熟客':'常連','火锅':'火鍋','川菜':'四川料理','小笼包':'小籠包','点心':'点心','甜品':'デザート','酒类':'お酒','套餐':'セット','重辣':'激辛','微辣':'ピリ辛','不吃辣':'辛い物不可','喜欢麻味':'しびれ好き','清淡':'あっさり','重口味':'濃い味',
+  '今日生日会员':'本日誕生日の会員','今日VIP预约':'本日のVIP予約','30天未到店':'30日未来店','今日投诉客户预约':'本日のクレーム顧客予約','黑名单客户':'ブラックリスト顧客','今日重点预约':'本日の重要予約','今日特殊要求':'本日の特別要望','特殊要求':'特別要望','下一组预约':'次の予約','今日接待顺序':'本日のご案内順','只显示本店数据，优先处理今日重点客户和预约。':'店舗データのみ表示し、本日の重要顧客と予約を優先して対応します。','只显示今天接待所需的信息。':'本日の接客に必要な情報のみ表示します。','查看全部门店的会员、预约、消费与渠道数据。':'全店舗の会員・予約・売上・流入経路データを表示します。',
+  '电话：':'電話：','生日：':'誕生日：','门店：':'店舗：','等级：':'ランク：','积分：':'ポイント：','到店：':'来店：','最后到店：':'最終来店：','消费：':'利用：','累计：':'累計：','平均：':'平均：','最后消费：':'最終利用：','备注：':'備考：','无':'なし','未登记':'未登録','未记录':'記録なし','次':'回','位':'名',
+  '今日到店':'本日来店','消费记录':'利用記録','编辑会员':'会員編集','客户档案':'顧客カルテ','删除会员':'会員削除','补充生日':'誕生日を追加','修改生日':'誕生日を変更','消费明细':'利用明細','预约记录':'予約履歴','营销建议':'マーケティング提案','近6个月消费趋势':'直近6か月の利用推移','累计消费':'累計利用額','消费次数':'利用回数','平均消费':'平均利用額','到店次数':'来店回数','流失风险：':'離脱リスク：','低':'低','中':'中','高':'高',
+  '已预约':'予約済み','待确认':'確認待ち','已确认':'確認済み','已到店':'来店済み','已完成':'完了','已取消':'キャンセル','删除预约':'予約削除','修改预约':'予約変更','No Show':'無断キャンセル',
+  '预约统计':'予約集計','总预约：':'予約総数：','总人数：':'総人数：','已预约：':'予約済み：','已到店：':'来店済み：','已取消：':'キャンセル：',
+  '请选择桌号':'テーブルを選択してください','请先选择日期、时间和人数':'先に日付・時間・人数を選択してください','人数超过座位数':'定員超過','该时段已预约':'この時間帯は予約済み','推荐':'おすすめ','需店铺确认':'店舗確認が必要',
+  '清空生日':'誕生日をクリア','取消':'キャンセル','确定':'確定','请选择日期':'日付を選択してください','补充或修改生日（可选）':'誕生日の追加・変更（任意）'
+};
+
+const fullJaPatterns = [
+  [/当前账号：/g,'現在のアカウント：'],[/人/g,'人'],[/组/g,'組'],[/位/g,'名'],[/次/g,'回'],
+  [/预约(\d+)/g,'予約$1'],[/到店(\d+)/g,'来店$1'],[/取消(\d+)/g,'キャンセル$1'],
+  [/最后到店：/g,'最終来店：'],[/最后消费：/g,'最終利用：'],[/注册日期：/g,'登録日：']
+];
+
+const originalTextNodes = new WeakMap();
+const originalAttrs = new WeakMap();
+let languageObserver = null;
+let translatingLanguage = false;
+
+function translateExactText(text){
+  const lead=(text.match(/^\s*/)||[''])[0], tail=(text.match(/\s*$/)||[''])[0];
+  const core=text.trim();
+  if(!core) return text;
+  let out=fullJaMap[core] || core;
+  if(out===core){
+    const prefixPairs=[
+      ['电话：','電話：'],['生日：','誕生日：'],['门店：','店舗：'],['桌号：','テーブル：'],['备注：','備考：'],['状态：','状態：'],['人数：','人数：'],['来源：','流入経路：'],['客户类型：','顧客タイプ：'],['来店场景：','来店シーン：'],['菜品偏好：','料理の好み：'],['口味属性：','味の好み：'],['到店次数：','来店回数：'],['注册日期：','登録日：']
+    ];
+    for(const [zh,ja] of prefixPairs){ if(out.startsWith(zh)){ out=ja+out.slice(zh.length); break; } }
+  }
+  fullJaPatterns.forEach(([re,rep])=>{ out=out.replace(re,rep); });
+  return lead+out+tail;
 }
+
+function translateElementTree(root=document.body){
+  if(!root) return;
+  translatingLanguage=true;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(node=>{
+    const parent=node.parentElement;
+    if(!parent || ['SCRIPT','STYLE'].includes(parent.tagName)) return;
+    if(!originalTextNodes.has(node)) originalTextNodes.set(node,node.nodeValue);
+    const source=originalTextNodes.get(node);
+    node.nodeValue=lang==='ja'?translateExactText(source):source;
+  });
+  root.querySelectorAll?.('[placeholder],[title],[aria-label]').forEach(el=>{
+    if(!originalAttrs.has(el)) originalAttrs.set(el,{
+      placeholder:el.getAttribute('placeholder'), title:el.getAttribute('title'), aria:el.getAttribute('aria-label')
+    });
+    const attrs=originalAttrs.get(el);
+    [['placeholder',attrs.placeholder],['title',attrs.title],['aria-label',attrs.aria]].forEach(([name,value])=>{
+      if(value!==null) el.setAttribute(name,lang==='ja'?translateExactText(value):value);
+    });
+  });
+  document.documentElement.lang=lang==='ja'?'ja':'zh-CN';
+  translatingLanguage=false;
+}
+
+function startLanguageObserver(){
+  if(languageObserver) return;
+  languageObserver=new MutationObserver(mutations=>{
+    if(translatingLanguage) return;
+    if(lang!=='ja') return;
+    mutations.forEach(m=>{
+      if(m.type==='childList') m.addedNodes.forEach(n=>{
+        if(n.nodeType===Node.TEXT_NODE){
+          if(!originalTextNodes.has(n)) originalTextNodes.set(n,n.nodeValue);
+          n.nodeValue=translateExactText(originalTextNodes.get(n));
+        }else if(n.nodeType===Node.ELEMENT_NODE) translateElementTree(n);
+      });
+      if(m.type==='characterData'){
+        const n=m.target;
+        if(!originalTextNodes.has(n)) originalTextNodes.set(n,n.nodeValue);
+        n.nodeValue=translateExactText(originalTextNodes.get(n));
+      }
+    });
+  });
+  languageObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
+}
+
+function setLang(l){
+  lang=l;
+  localStorage.setItem('fuyoen_ui_lang',l);
+  const t=labels[l];
+  const ids={navDashboard:'dashboard',navSearch:'search',navRegister:'register',navBirthday:'birthday',navStatus:'status',navMembers:'members',navAnalysis:'analysis',navPush:'push',navSettings:'settings',titleSearch:'search',titleRegister:'register',titleBirthday:'birthday',titleStatus:'status',titleMembers:'members',titleAnalysis:'analysis',titlePush:'push',titleSettings:'settings',dashboardTitle:'todayWork',searchSub:'searchSub',statTotalLabel:'total',statBirthLabel:'birthMonth',statVisitLabel:'visitMonth',statStatusLabel:'currentStatus',labelName:'name',labelPhone:'phone',labelBirthday:'birth',labelStore:'store',sectionProfile:'profile',labelCustomerType:'customerType',labelVisitScene:'visitScene',labelFoodPreference:'foodPreference',labelTastePreference:'tastePreference',birthToday:'today',birthMonth:'month',birthAll:'all',stOpen:'open',stBusy:'busy',stStop:'stop',stClosed:'closed',statusSub:'statusSub',saveBtn:'save',searchBtn:'searchBtn',pushBtn:'pushBtn',quickSearch:'search',quickRegister:'register',quickAnalysis:'analysis',anaType:'anaType',anaScene:'anaScene',anaFood:'anaFood',anaTaste:'anaTaste',anaActive:'anaActive',anaStore:'anaStore'};
+  for(const id in ids){ if($(id)) $(id).innerText=t[ids[id]]; }
+  if($('logoutBtn')) $('logoutBtn').innerText=t.logout;
+  if(currentUser){
+    buildSidebar();
+    updateStatusText();
+    Promise.resolve(renderAll()).then(()=>translateElementTree(document.body));
+  }else{
+    translateElementTree(document.body);
+  }
+  startLanguageObserver();
+}
+
 function showPage(id){
   if(!currentUser) return;
   const role=currentUser.role;
@@ -972,6 +1089,11 @@ async function checkNewBookingAlert(){ if(!supabaseClient || !currentUser) retur
       alert('有新的预约：'+newest.name+'｜'+newest.booking_date+' '+newest.booking_time+'｜'+newest.people+'位');
       renderBookings(); renderStats(); } }
 function startBookingAlert(){ if(bookingAlertStarted) return; bookingAlertStarted=true; checkNewBookingAlert(); setInterval(checkNewBookingAlert,30000); }
+
+// 初始化界面语言
+lang=localStorage.getItem('fuyoen_ui_lang')||'zh';
+startLanguageObserver();
+setTimeout(()=>translateElementTree(document.body),0);
 
 // ===== 客人预约页面：LINE入口用 =====
 (function(){
